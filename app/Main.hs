@@ -12,14 +12,14 @@ import Control.Monad.Trans.Either (runEitherT)
 import Data.Monoid ((<>))
 import Data.Proxy (Proxy (Proxy))
 import qualified Data.Text as T
-import Eclogues.API (VAPI)
+import Eclogues.API (API)
 import qualified Eclogues.Job as Job
 import Lens.Micro ((^.))
 import React.Flux
 import Servant.API ((:<|>) ((:<|>)))
 import Servant.Client (BaseUrl (..), Scheme (Http), client)
 
-(getJobs :<|> _) = client (Proxy :: Proxy VAPI) $ BaseUrl Http "localhost" 8000
+(getJobs :<|> _) = client (Proxy :: Proxy API) $ BaseUrl Http "localhost" 8000
 
 type ElementM = forall a. ReactElementM a ()
 

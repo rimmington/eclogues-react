@@ -18,13 +18,17 @@ packages:
   extra-dep: true
 - location:
     git: git@github.com:rimmington/eclogues
-    commit: d6b00f84294d2a6ef351caec215f23998763ba46
+    commit: b8179b48460d3a90450d5783130563dd0bad1255
   extra-dep: true
   subdirs:
   - eclogues
 - location:
     git: git@github.com:rimmington/uuid-aeson
     commit: 634f244564444ea4b700bcfca1211c261bcecf9f
+  extra-dep: true
+- location:
+    git: git@github.com:ssilab/digital-metrology-frontiers
+    commit: 87053f6e5892df1f1d7dc3bf85ee2677e7a41bf8
   extra-dep: true
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
@@ -34,7 +38,7 @@ extra-deps:
 - http-media-0.6.2
 - http-types-0.9
 - lens-4.13
-- microlens-0.3.4.1
+- microlens-0.3.4.0
 - network-uri-2.6.0.3
 - path-0.5.2
 - react-flux-1.0.1
@@ -71,6 +75,22 @@ extra-deps:
 - double-conversion-2.0.1.0
 - nats-1
 - prelude-extras-0.4.0.2
+- microlens-th-0.2.1.1
+- units-2.3
+- units-attoparsec-1.0
+- units-defs-2.0.0.1
+- multimap-1.2.1
+- singletons-1.1.2.1
+- th-desugar-1.5.5
+- units-parser-0.1.0.0
+- vector-space-0.10.2
+- Boolean-0.2.3
+- MemoTrie-0.6.4
+- NumInstances-1.4
+- th-lift-0.7.5
+- th-orphans-0.13.0
+- th-reify-many-0.1.3
+- th-expand-syns-0.3.0.6
 
 # Override default flag values for local packages and extra-deps
 flags: {}
