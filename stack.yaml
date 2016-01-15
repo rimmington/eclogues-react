@@ -18,7 +18,7 @@ packages:
   extra-dep: true
 - location:
     git: git@github.com:rimmington/eclogues
-    commit: b8179b48460d3a90450d5783130563dd0bad1255
+    commit: f41b0b9100951b45ba037413cf230dcb7ea9e49c
   extra-dep: true
   subdirs:
   - eclogues
@@ -29,6 +29,14 @@ packages:
 - location:
     git: git@github.com:ssilab/digital-metrology-frontiers
     commit: 87053f6e5892df1f1d7dc3bf85ee2677e7a41bf8
+  extra-dep: true
+- location:
+    git: https://github.com/rimmington/path
+    commit: cd470f2d11e48d9f5e5110785408a62d806a0101
+  extra-dep: true
+- location:
+    git: https://github.com/rimmington/units
+    commit: 7e11e858387923ad793115e6f2bdca5af968ccf4
   extra-dep: true
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
