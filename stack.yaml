@@ -18,7 +18,7 @@ packages:
   extra-dep: true
 - location:
     git: git@github.com:rimmington/eclogues
-    commit: f41b0b9100951b45ba037413cf230dcb7ea9e49c
+    commit: 668f67cf7c7ef94a9cdc64f5367bd2df59fad53b
   extra-dep: true
   subdirs:
   - eclogues
@@ -31,8 +31,8 @@ packages:
     commit: 87053f6e5892df1f1d7dc3bf85ee2677e7a41bf8
   extra-dep: true
 - location:
-    git: https://github.com/rimmington/path
-    commit: cd470f2d11e48d9f5e5110785408a62d806a0101
+    git: https://github.com/chrisdone/path
+    commit: 9af2a76b2e587c6f763c7e6eae53285f49e1c95d
   extra-dep: true
 - location:
     git: https://github.com/rimmington/units

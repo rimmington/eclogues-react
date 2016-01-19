@@ -10,13 +10,15 @@
 
 module Main where
 
+import Components
+
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (async)
 import Control.DeepSeq (NFData)
 import Control.Monad (void)
 import Control.Monad.Trans.Either (EitherT, runEitherT)
-import Data.Aeson (ToJSON)
-import Data.Maybe (fromMaybe, isNothing)
+import Data.Aeson (ToJSON, (.=), object)
+import Data.Maybe (isNothing)
 import Data.Metrology.Computing ((%>), Byte (Byte), Core (Core))
 import Data.Metrology.SI (Second (Second), mega)
 import Data.Monoid ((<>))
@@ -32,16 +34,12 @@ import Lens.Micro (Lens', ASetter', (^.), (.~), (&))
 import Lens.Micro.TH (makeLenses)
 import qualified Network.HTTP.Types.Status as HTTP
 import Path (parseAbsFile)
-import React.Flux
 import Servant.API ((:<|>) ((:<|>)))
 import Servant.Client (BaseUrl (..), Scheme (Http), client)
 import qualified Servant.Client as SC
 import Servant.Common.Req (ServantError)
 
 import Debug.Trace (traceShow)
-
-type ElementM = ReactElementM ViewEventHandler ()
-type Handler  = PropertyOrHandler ViewEventHandler
 
 data State = State { page         :: Page
                    , jobs         :: [Job.Status]
@@ -50,7 +48,7 @@ data State = State { page         :: Page
 
 data Page = JobList
           | AddJob
-          deriving (Generic, NFData)
+          deriving (Eq, Generic, NFData)
 
 data SubmitStatus = NotSubmitted
                   | Submitting
@@ -93,10 +91,6 @@ createJob j = either (Just . convError) (const Nothing) <$> runEitherT (createJo
 defPartialSpec :: PartialSpec
 defPartialSpec = PartialSpec "" "" 10 10 1 60 [] False []
 
-defResources :: Job.Resources
-defResources = fromMaybe (error "invalid default resources") $
-    Job.mkResources (10 %> mega Byte) (10 %> mega Byte) (1 %> Core) (60 %> Second)
-
 data Action = RefreshInit
             | RefreshReturn [Job.Status]
             | SwitchPage Page
@@ -135,7 +129,13 @@ dispatchState a = [SomeStoreAction store a]
 
 app :: ReactView ()
 app = defineControllerView "eclogues app" store $ \s () ->
-    div_ $ appHeader_ <> links_ <> section_ ["id" $= "main"] (pageElement_ s)
+    pageContainer_ $ do
+        appHeader_
+        links_ $ page s
+        section_ ["id" $= "main", "style" @= sty] $ pageElement_ s
+  where
+    sty = object ["marginTop" .$ "3ex"]
+    a .$ b = (a :: Text) .= (b :: Text)
 
 pageElement_ :: State -> ElementM
 pageElement_ State{..} = case page of
@@ -143,15 +143,15 @@ pageElement_ State{..} = case page of
     AddJob  -> addJob_ submitStatus pspec
 
 appHeader_ :: ElementM
-appHeader_ = h1_ "Eclogues Jobs"
+appHeader_ = pageHeader_ "Eclogues Jobs"
 
-links_ :: ElementM
-links_ = p_ $ do
-    link "Job List" JobList
-    link "Add Job"  AddJob
+links_ :: Page -> ElementM
+links_ cur = tabs_ $ do
+    tab "Job List" JobList
+    tab "Add Job"  AddJob
   where
-    link :: String -> Page -> ElementM
-    link lbl dest = a_ ["href" $= "#", goto dest] $ elemText lbl
+    tab :: String -> Page -> ElementM
+    tab lbl dest = tab_ (dest == cur) [goto dest] $ elemText lbl
     goto :: Page -> Handler
     goto dest = onClick $ \_ _ -> dispatchState $ SwitchPage dest
 
@@ -161,31 +161,35 @@ jobList_ ss = table_ $ do
     tbody_ $ mapM_ job_ ss
 
 addJob_ :: SubmitStatus -> PartialSpec -> ElementM
-addJob_ subSt s@PartialSpec{..} = form_ $ do
-    row "Name" $ changingInput "text" pname chkName
-    row "Command" $ changingInput "text" pcmd Just
-    row "CPU" $ changingInput "number" pcpu Just
-    row "RAM" $ changingInput "number" pram Just
-    row "Disk" $ changingInput "number" pdisk Just
-    row "Time" $ changingInput "number" ptime Just
-    row "Output file paths" $ textarea_ ["value" $= interlines _ppaths, changing ppaths (Just . splitLines)] empty
-    row "Capture stdout" $ changingInput "checkbox" pstdout Just
-    row "Dependencies" $ textarea_ ["value" $= interlines _pdeps, changing pdeps (Just . splitLines)] empty
-    button_ ["disabled" @= cannotSubmit, onClick $ \_ _ -> submit] "Submit"
+addJob_ subSt s@PartialSpec{..} = form_ ["className" $= "form-horizontal"] $ do
+    rowChangingInput "name" "Name"    "text"   pname chkName
+    rowChangingInput "cmd"  "Command" "text"   pcmd  Just
+    rowChangingInput "cpu"  "CPU"     "number" pcpu  Just
+    rowChangingInput "ram"  "RAM"     "number" pram  Just
+    rowChangingInput "disk" "Disk"    "number" pdisk Just
+    rowChangingInput "time" "Time"    "number" ptime Just
+    formRow_ "rowIdofp" "Output file paths" $
+        textarea_ ["id" $= "rowIdofp", "value" $= interlines _ppaths, changing ppaths (Just . splitLines)]
+    rowChangingInput "stdo" "Capture stdout" "checkbox" pstdout Just
+    formRow_ "rowIddeps" "Dependencies" $
+        textarea_ ["id" $= "rowIddeps", "value" $= interlines _pdeps, changing pdeps (Just . splitLines)]
+    formGroup_ . formUnlabelledRow_ $
+        button_ ["disabled" @= cannotSubmit, onClick $ \_ _ -> submit] "Submit"
     case subSt of
         SubmitFailure err -> p_ . elemText . T.unpack $ showError err
         _                 -> pure ()
   where
-    row :: String -> ElementM -> ElementM
-    row lbl e = label_ $ elemText lbl <> e
-    changingInput :: (FromJSRef t, ToJSON a) => Text -> Lens' PartialSpec a -> (t -> Maybe a) -> ElementM
-    changingInput typ l validate = input_ ["type" $= typ, "value" @= (s ^. l), changing l validate]
+    rowChangingInput :: (FromJSRef t, ToJSON a) => Text -> String -> Text -> Lens' PartialSpec a -> (t -> Maybe a) -> ElementM
+    rowChangingInput htmlId lbl typ l = formRow_ htmlId' lbl . changingInput htmlId' typ l
+      where
+        htmlId' = "rowId" <> htmlId
+    changingInput :: (FromJSRef t, ToJSON a) => Text -> Text -> Lens' PartialSpec a -> (t -> Maybe a) -> ElementM
+    changingInput htmlId typ l validate = input_ ["id" $= htmlId, "type" $= typ, "value" @= (s ^. l), changing l validate]
     changing :: (FromJSRef t) => ASetter' PartialSpec a -> (t -> Maybe a) -> Handler
     changing l validate = onChange $ \evt -> case validate $ target evt "value" of
         Nothing -> []
         Just v  -> dispatchState . UpdatePSpec $ s & l .~ v
     chkName = fmap Job.nameText . Job.mkName
-    empty = pure ()
     mkSpec = do
         name <- Job.mkName _pname
         res <- Job.mkResources (fromIntegral _pram  %> mega Byte)
