@@ -17,7 +17,7 @@ import Control.Concurrent.Async (async)
 import Control.DeepSeq (NFData)
 import Control.Monad (void)
 import Control.Monad.Trans.Either (EitherT, runEitherT)
-import Data.Aeson (ToJSON, (.=), object)
+import Data.Aeson (ToJSON)
 import Data.Maybe (isNothing)
 import Data.Metrology.Computing ((%>), Byte (Byte), Core (Core))
 import Data.Metrology.SI (Second (Second), mega)
@@ -132,36 +132,33 @@ app = defineControllerView "eclogues app" store $ \s () ->
     pageContainer_ $ do
         appHeader_
         links_ $ page s
-        section_ ["id" $= "main", "style" @= sty] $ pageElement_ s
-  where
-    sty = object ["marginTop" .$ "3ex"]
-    a .$ b = (a :: Text) .= (b :: Text)
+        section_ [htmlId "main", style (marginTop "3ex" mempty)] $ pageElement_ s
 
-pageElement_ :: State -> ElementM
+pageElement_ :: State -> Element
 pageElement_ State{..} = case page of
     JobList -> jobList_ jobs
     AddJob  -> addJob_ submitStatus pspec
 
-appHeader_ :: ElementM
+appHeader_ :: Element
 appHeader_ = pageHeader_ "Eclogues Jobs"
 
-links_ :: Page -> ElementM
+links_ :: Page -> Element
 links_ cur = tabs_ $ do
     tab "Job List" JobList
     tab "Add Job"  AddJob
   where
-    tab :: String -> Page -> ElementM
-    tab lbl dest = tab_ (dest == cur) [goto dest] $ elemText lbl
-    goto :: Page -> Handler
+    tab :: String -> Page -> Element
+    tab lbl dest = tab_ (dest == cur) . a_ [href "#", goto dest] $ elemText lbl
+    goto :: Page -> Prop Link
     goto dest = onClick $ \_ _ -> dispatchState $ SwitchPage dest
 
-jobList_ :: [Job.Status] -> ElementM
+jobList_ :: [Job.Status] -> Element
 jobList_ ss = table_ $ do
     thead_ $ tr_ $ th_ "Name" <> th_ "Stage"
     tbody_ $ mapM_ job_ ss
 
-addJob_ :: SubmitStatus -> PartialSpec -> ElementM
-addJob_ subSt s@PartialSpec{..} = form_ ["className" $= "form-horizontal"] $ do
+addJob_ :: SubmitStatus -> PartialSpec -> Element
+addJob_ subSt s@PartialSpec{..} = form_ [className "form-horizontal"] $ do
     rowChangingInput "name" "Name"    "text"   pname chkName
     rowChangingInput "cmd"  "Command" "text"   pcmd  Just
     rowChangingInput "cpu"  "CPU"     "number" pcpu  Just
@@ -169,24 +166,24 @@ addJob_ subSt s@PartialSpec{..} = form_ ["className" $= "form-horizontal"] $ do
     rowChangingInput "disk" "Disk"    "number" pdisk Just
     rowChangingInput "time" "Time"    "number" ptime Just
     formRow_ "rowIdofp" "Output file paths" $
-        textarea_ ["id" $= "rowIdofp", "value" $= interlines _ppaths, changing ppaths (Just . splitLines)]
+        textarea_ [htmlId "rowIdofp", value $ interlines _ppaths, changing ppaths (Just . splitLines)]
     rowChangingInput "stdo" "Capture stdout" "checkbox" pstdout Just
     formRow_ "rowIddeps" "Dependencies" $
-        textarea_ ["id" $= "rowIddeps", "value" $= interlines _pdeps, changing pdeps (Just . splitLines)]
+        textarea_ [htmlId "rowIddeps", value $ interlines _pdeps, changing pdeps (Just . splitLines)]
     formGroup_ . formUnlabelledRow_ $
-        button_ ["disabled" @= cannotSubmit, onClick $ \_ _ -> submit] "Submit"
+        button_ [disabled cannotSubmit, onClick $ \_ _ -> submit] "Submit"
     case subSt of
         SubmitFailure err -> p_ . elemText . T.unpack $ showError err
         _                 -> pure ()
   where
-    rowChangingInput :: (FromJSRef t, ToJSON a) => Text -> String -> Text -> Lens' PartialSpec a -> (t -> Maybe a) -> ElementM
-    rowChangingInput htmlId lbl typ l = formRow_ htmlId' lbl . changingInput htmlId' typ l
+    rowChangingInput :: (FromJSRef t, ToJSON a) => Text -> String -> Text -> Lens' PartialSpec a -> (t -> Maybe a) -> Element
+    rowChangingInput id_ lbl typ l = formRow_ id_' lbl . changingInput id_' typ l
       where
-        htmlId' = "rowId" <> htmlId
-    changingInput :: (FromJSRef t, ToJSON a) => Text -> Text -> Lens' PartialSpec a -> (t -> Maybe a) -> ElementM
-    changingInput htmlId typ l validate = input_ ["id" $= htmlId, "type" $= typ, "value" @= (s ^. l), changing l validate]
-    changing :: (FromJSRef t) => ASetter' PartialSpec a -> (t -> Maybe a) -> Handler
-    changing l validate = onChange $ \evt -> case validate $ target evt "value" of
+        id_' = "rowId" <> id_
+    changingInput :: (FromJSRef t, ToJSON a) => Text -> Text -> Lens' PartialSpec a -> (t -> Maybe a) -> Element
+    changingInput id_ typ l validate = input_ [htmlId id_, inputType typ, jsonValue (s ^. l), changing l validate]
+    changing :: (FromJSRef t) => ASetter' PartialSpec a -> (t -> Maybe a) -> Prop Input
+    changing l validate = onChange $ \evt -> case validate $ newValue evt of
         Nothing -> []
         Just v  -> dispatchState . UpdatePSpec $ s & l .~ v
     chkName = fmap Job.nameText . Job.mkName
@@ -209,10 +206,10 @@ job = defineView "job" $ \s ->
     let name = jobNameString s
     in  tr_ $ td "name" name <> td "stage" (Job.majorStage $ s ^. Job.stage)
   where
-    td :: String -> String -> ElementM
-    td k = td_ ["key" @= k] . elemText
+    td :: String -> String -> Element
+    td k = td_ [reactKey k] . elemText
 
-job_ :: Job.Status -> ElementM
+job_ :: Job.Status -> Element
 job_ s = viewWithKey job (jobNameString s) s mempty
 
 jobNameString :: Job.Status -> String
