@@ -182,7 +182,7 @@ addJob_ subSt s@PartialSpec{..} = form_ [className "form-horizontal"] $ do
         id_' = "rowId" <> id_
     changingInput :: (FromJSRef t, ToJSON a) => Text -> Text -> Lens' PartialSpec a -> (t -> Maybe a) -> Element
     changingInput id_ typ l validate = input_ [htmlId id_, inputType typ, jsonValue (s ^. l), changing l validate]
-    changing :: (FromJSRef t) => ASetter' PartialSpec a -> (t -> Maybe a) -> Prop Input
+    changing :: (FromJSRef t, HasValue u) => ASetter' PartialSpec a -> (t -> Maybe a) -> Prop u
     changing l validate = onChange $ \evt -> case validate $ newValue evt of
         Nothing -> []
         Just v  -> dispatchState . UpdatePSpec $ s & l .~ v

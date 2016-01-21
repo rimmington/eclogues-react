@@ -6,8 +6,9 @@
 module Components (
       ReactStore, StoreData (..), SomeStoreAction (..), alterStore, mkStore
     , ReactView, defineView, defineControllerView, viewWithKey
-    , Element
-    , Prop, GenContainer, Input, Link, Label, Button
+    , Element, Prop
+    , GenContainer, Input, OtherInput, Link, Label, Button
+    , Clickable, HasValue
     , reactRender
     , pageContainer_, pageHeader_, section_
     , h1_
@@ -77,6 +78,7 @@ marginTop v (Style ps) = Style $ ("marginTop", Aeson.String v) : ps
 data Button
 data GenContainer
 data Input
+data OtherInput
 data Label
 data Link
 
@@ -87,21 +89,26 @@ instance Clickable Link
 onClick :: (Clickable a) => (F.Event -> F.MouseEvent -> F.ViewEventHandler) -> Prop a
 onClick = Prop . F.onClick
 
+class HasValue a
+instance HasValue Input
+instance HasValue OtherInput
+
+onChange :: (HasValue a) => (F.Event -> F.ViewEventHandler) -> Prop a
+onChange = Prop . F.onChange
+
+value :: (HasValue a) => Text -> Prop a
+value = txtProp "value"
+
+jsonValue :: (HasValue a, Aeson.ToJSON v) => v -> Prop a
+jsonValue = jsonProp "value"
+
 $(mkRawElem ''Button "button")
 $(mkRawElem ''GenContainer "table")
 $(mkRawElem ''Input "input")
-$(mkRawElem ''Input "textarea")
+$(mkRawElem ''OtherInput "textarea")
 
-$(mkContainer ''GenContainer "h1")
-$(mkContainer ''GenContainer "li")
-$(mkContainer ''GenContainer "section")
-$(mkContainer ''GenContainer "form")
-$(mkContainer ''GenContainer "tr")
-$(mkContainer ''GenContainer "td")
-$(mkContainer ''GenContainer "th")
-$(mkContainer ''GenContainer "thead")
-$(mkContainer ''GenContainer "tbody")
-$(mkContainer ''GenContainer "p")
+$(concat <$> traverse (mkContainer ''GenContainer)
+    ["h1", "li", "section", "form", "tr", "td", "th", "thead", "tbody", "p"])
 $(mkContainer ''Label "label")
 $(mkContainer ''Link "a")
 
@@ -152,20 +159,11 @@ disabled = jsonProp "disabled"
 input_ :: Leaf Input
 input_ ps = input [className "form-control"] ps empty
 
-textarea_ :: Leaf Input
+textarea_ :: Leaf OtherInput
 textarea_ ps = textarea [className "form-control"] ps empty
-
-value :: Text -> Prop Input
-value = txtProp "value"
-
-jsonValue :: (Aeson.ToJSON a) => a -> Prop Input
-jsonValue = jsonProp "value"
 
 inputType :: Text -> Prop Input
 inputType = txtProp "type"
-
-onChange :: (F.Event -> F.ViewEventHandler) -> Prop Input
-onChange = Prop . F.onChange
 
 newValue :: (FromJSRef val) => F.Event -> val
 newValue evt = F.target evt "value"
