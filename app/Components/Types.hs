@@ -22,9 +22,9 @@ class (i ~ PropOrElement a r, r ~ ElementOrFun a i) => Construct a i r where
     type ElementOrFun  a i :: *
     present :: String -> [Prop a] -> i -> r
 
-instance (x ~ ()) => Construct a [Prop a] (ElementM x -> ElementM x) where
+instance (x ~ (), a ~ a') => Construct a [Prop a'] (ElementM x -> ElementM x) where
     type PropOrElement a (ElementM x -> ElementM x) = [Prop a]
-    type ElementOrFun  a [Prop a]                   = (Element -> Element)
+    type ElementOrFun  a [Prop a']                  = (Element -> Element)
     present elemName ps = F.el elemName . coerce . (++ ps)
 
 instance (x ~ ()) => Construct a (ElementM x) (ElementM x) where
