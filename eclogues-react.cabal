@@ -33,6 +33,7 @@ executable eclogues-react
                      , aeson
                      , path
                      , http-types
+                     , template-haskell
   default-language:    Haskell2010
   cpp-options:         -DGHCJS_BROWSER
 
