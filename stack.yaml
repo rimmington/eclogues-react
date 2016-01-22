@@ -14,21 +14,21 @@ setup-info:
 packages:
 - '.'
 - location:
-    git: git@github.com:rimmington/ghcjs-servant-client
+    git: https://github.com/rimmington/ghcjs-servant-client
     commit: dd9cdf67223b2c8dae17a53faa17f33424644cd7
   extra-dep: true
 - location:
-    git: git@github.com:rimmington/eclogues
+    git: https://github.com/rimmington/eclogues
     commit: 668f67cf7c7ef94a9cdc64f5367bd2df59fad53b
   extra-dep: true
   subdirs:
   - eclogues
 - location:
-    git: git@github.com:rimmington/uuid-aeson
+    git: https://github.com/rimmington/uuid-aeson
     commit: 634f244564444ea4b700bcfca1211c261bcecf9f
   extra-dep: true
 - location:
-    git: git@github.com:ssilab/digital-metrology-frontiers
+    git: https://github.com/ssilab/digital-metrology-frontiers
     commit: 87053f6e5892df1f1d7dc3bf85ee2677e7a41bf8
   extra-dep: true
 - location:
