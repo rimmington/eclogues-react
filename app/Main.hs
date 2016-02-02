@@ -20,7 +20,7 @@ import Control.Monad.Trans.Either (EitherT, runEitherT)
 import Data.Aeson (ToJSON)
 import Data.Maybe (isNothing)
 import Data.Metrology.Computing ((%>), Byte (Byte), Core (Core))
-import Data.Metrology.SI (Second (Second), mega)
+import Data.Metrology.SI (Second (Second), mega, centi)
 import Data.Monoid ((<>))
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (Text)
@@ -161,7 +161,7 @@ addJob_ :: SubmitStatus -> PartialSpec -> Element
 addJob_ subSt s@PartialSpec{..} = form_ [className "form-horizontal"] $ do
     rowChangingInput "name" "Name"    "text"   Nothing pname chkName
     rowChangingInput "cmd"  "Command" "text"   Nothing pcmd  Just
-    rowChangingInput "cpu"  "CPU"     "number" (Just "cores") pcpu  Just
+    rowChangingInput "cpu"  "CPU"     "number" (Just "dcores") pcpu  Just
     rowChangingInput "ram"  "RAM"     "number" (Just "MB")    pram  Just
     rowChangingInput "disk" "Disk"    "number" (Just "MB")    pdisk Just
     rowChangingInput "time" "Time"    "number" (Just "s")     ptime Just
@@ -192,10 +192,10 @@ addJob_ subSt s@PartialSpec{..} = form_ [className "form-horizontal"] $ do
     chkName = fmap Job.nameText . Job.mkName
     mkSpec = do
         name <- Job.mkName _pname
-        res <- Job.mkResources (fromIntegral _pram  %> mega Byte)
-                               (fromIntegral _pdisk %> mega Byte)
-                               (fromIntegral _pcpu  %> Core)
-                               (fromIntegral _ptime %> Second)
+        res <- Job.mkResources (fromIntegral _pram      %> mega Byte)
+                               (fromIntegral _pdisk     %> mega Byte)
+                               (fromIntegral _pcpu * 10 %> centi Core)
+                               (fromIntegral _ptime     %> Second)
         paths <- traverse (fmap Job.OutputPath . parseAbsFile . T.unpack) _ppaths
         deps <- traverse Job.mkName _pdeps
         pure $ Job.mkSpec name _pcmd res paths _pstdout deps
