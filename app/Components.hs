@@ -12,11 +12,11 @@ module Components (
     , reactRender
     , pageContainer_, pageHeader_, section_
     , h1_
-    , div_, p_
+    , div_, p_, span_
     , a_, href, onClick
     , table_, thead_, tbody_, tr_, th_, td_
     , tabs_, tab_
-    , form_, formGroup_, formRow_, formUnlabelledRow_
+    , form_, formGroup_, formRow_, formUnlabelledRow_, inputGroup_, inputAddon_
     , input_, textarea_, onChange, newValue, value, jsonValue, inputType
     , button_, disabled
     , elemText
@@ -115,6 +115,9 @@ $(mkContainer ''Link "a")
 htmlDiv :: RawElem GenContainer
 htmlDiv = present "div"
 
+htmlSpan :: RawElem GenContainer
+htmlSpan = present "span"
+
 pageHeader_ :: Container GenContainer
 pageHeader_ = h1 [className "page-header"]
 
@@ -123,6 +126,9 @@ pageContainer_ = htmlDiv [className "container"]
 
 div_ :: Container GenContainer
 div_ = htmlDiv []
+
+span_ :: Container GenContainer
+span_ = htmlSpan []
 
 table_ :: Container GenContainer
 table_ = table [className "table"]
@@ -149,6 +155,12 @@ for = txtProp "htmlFor"
 
 formGroup_ :: Element -> Element
 formGroup_ = div_ [className "form-group"]
+
+inputGroup_ :: Element -> Element
+inputGroup_ = div_ [className "input-group"]
+
+inputAddon_ :: Element -> Element
+inputAddon_ = span_ [className "input-group-addon"]
 
 button_ :: Container Button
 button_ = button [className "btn btn-default"]

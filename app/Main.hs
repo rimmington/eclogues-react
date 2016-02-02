@@ -159,15 +159,15 @@ jobList_ ss = table_ $ do
 
 addJob_ :: SubmitStatus -> PartialSpec -> Element
 addJob_ subSt s@PartialSpec{..} = form_ [className "form-horizontal"] $ do
-    rowChangingInput "name" "Name"    "text"   pname chkName
-    rowChangingInput "cmd"  "Command" "text"   pcmd  Just
-    rowChangingInput "cpu"  "CPU"     "number" pcpu  Just
-    rowChangingInput "ram"  "RAM"     "number" pram  Just
-    rowChangingInput "disk" "Disk"    "number" pdisk Just
-    rowChangingInput "time" "Time"    "number" ptime Just
+    rowChangingInput "name" "Name"    "text"   Nothing pname chkName
+    rowChangingInput "cmd"  "Command" "text"   Nothing pcmd  Just
+    rowChangingInput "cpu"  "CPU"     "number" (Just "cores") pcpu  Just
+    rowChangingInput "ram"  "RAM"     "number" (Just "MB")    pram  Just
+    rowChangingInput "disk" "Disk"    "number" (Just "MB")    pdisk Just
+    rowChangingInput "time" "Time"    "number" (Just "s")     ptime Just
     formRow_ "rowIdofp" "Output file paths" $
         textarea_ [htmlId "rowIdofp", value $ interlines _ppaths, changing ppaths (Just . splitLines)]
-    rowChangingInput "stdo" "Capture stdout" "checkbox" pstdout Just
+    rowChangingInput "stdo" "Capture stdout" "checkbox" Nothing pstdout Just
     formRow_ "rowIddeps" "Dependencies" $
         textarea_ [htmlId "rowIddeps", value $ interlines _pdeps, changing pdeps (Just . splitLines)]
     formGroup_ . formUnlabelledRow_ $
@@ -176,10 +176,13 @@ addJob_ subSt s@PartialSpec{..} = form_ [className "form-horizontal"] $ do
         SubmitFailure err -> p_ . elemText . T.unpack $ showError err
         _                 -> pure ()
   where
-    rowChangingInput :: (FromJSRef t, ToJSON a) => Text -> String -> Text -> Lens' PartialSpec a -> (t -> Maybe a) -> Element
-    rowChangingInput id_ lbl typ l = formRow_ id_' lbl . changingInput id_' typ l
+    rowChangingInput :: (FromJSRef t, ToJSON a) => Text -> String -> Text -> Maybe String -> Lens' PartialSpec a -> (t -> Maybe a) -> Element
+    rowChangingInput id_ lbl typ mAddStr l = formRow_ id_' lbl . addon . changingInput id_' typ l
       where
         id_' = "rowId" <> id_
+        addon ip = case mAddStr of
+            Nothing  -> ip
+            Just str -> inputGroup_ $ ip <> inputAddon_ (elemText str)
     changingInput :: (FromJSRef t, ToJSON a) => Text -> Text -> Lens' PartialSpec a -> (t -> Maybe a) -> Element
     changingInput id_ typ l validate = input_ [htmlId id_, inputType typ, jsonValue (s ^. l), changing l validate]
     changing :: (FromJSRef t, HasValue u) => ASetter' PartialSpec a -> (t -> Maybe a) -> Prop u
