@@ -192,13 +192,14 @@ addJob_ subSt s@PartialSpec{..} = form_ [className "form-horizontal"] $ do
     chkName = fmap Job.nameText . Job.mkName
     mkSpec = do
         name <- Job.mkName _pname
+        cmd <- if T.null _pcmd then Nothing else Just _pcmd
         res <- Job.mkResources (fromIntegral _pram      %> mega Byte)
                                (fromIntegral _pdisk     %> mega Byte)
                                (fromIntegral _pcpu * 10 %> centi Core)
                                (fromIntegral _ptime     %> Second)
         paths <- traverse (fmap Job.OutputPath . parseAbsFile . T.unpack) _ppaths
         deps <- traverse Job.mkName _pdeps
-        pure $ Job.mkSpec name _pcmd res paths _pstdout deps
+        pure $ Job.mkSpec name cmd res paths _pstdout deps
     submit = traceShow s $ maybe [] (dispatchState . SubmitJob) mkSpec
     cannotSubmit = subSt == Submitting || isNothing mkSpec
     interlines = T.intercalate "\n"
