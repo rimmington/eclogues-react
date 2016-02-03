@@ -18,6 +18,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad (void)
 import Control.Monad.Trans.Either (EitherT, runEitherT)
 import Data.Aeson (ToJSON)
+import Data.Bifunctor (first)
 import Data.Maybe (isNothing)
 import Data.Metrology.Computing ((%>), Byte (Byte), Core (Core))
 import Data.Metrology.SI (Second (Second), mega, centi)
@@ -43,6 +44,7 @@ import Debug.Trace (traceShow)
 
 data State = State { page         :: Page
                    , jobs         :: [Job.Status]
+                   , refreshError :: Maybe SubmitError
                    , pspec        :: PartialSpec
                    , submitStatus :: SubmitStatus }
 
@@ -58,7 +60,7 @@ data SubmitStatus = NotSubmitted
 data SubmitError = InvalidResponse Text
                  | ConnectionError Text
                  | FailureResponse Text
-                 deriving (Eq, Generic, NFData)
+                 deriving (Show, Eq, Generic, NFData)
 
 data PartialSpec = PartialSpec { _pname   :: Text
                                , _pcmd    :: Text
@@ -92,7 +94,7 @@ defPartialSpec :: PartialSpec
 defPartialSpec = PartialSpec "" "" 10 10 1 60 [] False []
 
 data Action = RefreshInit
-            | RefreshReturn [Job.Status]
+            | RefreshReturn (Either SubmitError [Job.Status])
             | SwitchPage Page
             | UpdatePSpec PartialSpec
             | SubmitJob Job.Spec
@@ -101,10 +103,12 @@ data Action = RefreshInit
 
 instance StoreData State where
     type StoreAction State = Action
-    transform RefreshInit        s    = updateJobs *> pure s
-    transform (RefreshReturn njobs) s = do
+    transform RefreshInit        s      = updateJobs *> pure s
+    transform (RefreshReturn r)  s      = do
         _ <- async $ threadDelay 1000000 *> alterStore store RefreshInit
-        pure $ s{ jobs = njobs }
+        pure $ case r of
+            Right jobs' -> s{ jobs = jobs', refreshError = Nothing }
+            Left  err   -> s{ refreshError = Just err }
     transform (SwitchPage np) s         = pure $ s{ page = np }
     transform (UpdatePSpec p) s         = pure $ s{ pspec = p }
     transform (SubmitJob j)   s         = do
@@ -117,12 +121,11 @@ instance StoreData State where
 
 -- TODO: handle errors more gracefully
 updateJobs :: IO ()
-updateJobs = void . async $ runEitherT getJobs >>= \case
-    Right ss -> alterStore store $ RefreshReturn ss
-    Left  e  -> print e
+updateJobs = void . async $ runEitherT getJobs >>= \r ->
+    alterStore store . RefreshReturn $ first convError r
 
 store :: ReactStore State
-store = mkStore $ State JobList [] defPartialSpec NotSubmitted
+store = mkStore $ State JobList [] Nothing defPartialSpec NotSubmitted
 
 dispatchState :: Action -> [SomeStoreAction]
 dispatchState a = [SomeStoreAction store a]
@@ -131,6 +134,7 @@ app :: ReactView ()
 app = defineControllerView "eclogues app" store $ \s () ->
     pageContainer_ $ do
         appHeader_
+        mapM_ (alert_ Danger . elemText . T.unpack . showError) $ refreshError s
         links_ $ page s
         section_ [htmlId "main", style (marginTop "3ex" mempty)] $ pageElement_ s
 
@@ -221,8 +225,10 @@ jobNameString = T.unpack . Job.nameText . (^. Job.name)
 
 -- TODO: What happened to ConnectionError in ghcjs-servant-client?
 convError :: ServantError -> SubmitError
-convError (SC.FailureResponse (HTTP.Status _ msg) _ _)  -- TODO: decode Eclogues error
-    = either (const $ InvalidResponse "Could not decode server response") FailureResponse $ decodeUtf8' msg
+convError (SC.FailureResponse (HTTP.Status code bmsg) _ _)  -- TODO: decode Eclogues error
+    | code == 0                     = ConnectionError "Error connecting to server"
+    | Right msg <- decodeUtf8' bmsg = FailureResponse msg
+    | otherwise                     = InvalidResponse "Could not decode server response"
 convError (SC.DecodeFailure err _ _)
     = InvalidResponse $ T.pack err
 convError (SC.UnsupportedContentType _ _)

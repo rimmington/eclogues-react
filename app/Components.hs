@@ -19,6 +19,7 @@ module Components (
     , form_, formGroup_, formRow_, formUnlabelledRow_, inputGroup_, inputAddon_
     , input_, textarea_, onChange, newValue, value, jsonValue, inputType
     , button_, disabled
+    , Flavour (..), alert_
     , elemText
     , htmlId, className, classNames, reactKey
     , style, marginTop
@@ -179,3 +180,14 @@ inputType = txtProp "type"
 
 newValue :: (FromJSRef val) => F.Event -> val
 newValue evt = F.target evt "value"
+
+data Flavour = Success | Info | Warning | Danger deriving (Show, Eq)
+
+flavourSuffix :: Flavour -> Text
+flavourSuffix Success = "success"
+flavourSuffix Info    = "info"
+flavourSuffix Warning = "warning"
+flavourSuffix Danger  = "danger"
+
+alert_ :: Flavour -> Element -> Element
+alert_ flav = div_ [className $ "alert alert-" <> flavourSuffix flav, role "alert"]
