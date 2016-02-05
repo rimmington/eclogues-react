@@ -19,7 +19,7 @@ import Control.Monad (void)
 import Control.Monad.Trans.Either (EitherT, runEitherT)
 import Data.Aeson (ToJSON)
 import Data.Bifunctor (first)
-import Data.Maybe (isNothing)
+import Data.Maybe (isNothing, isJust)
 import Data.Metrology.Computing ((%>), Byte (Byte), Core (Core))
 import Data.Metrology.SI (Second (Second), mega, centi)
 import Data.Monoid ((<>))
@@ -141,7 +141,7 @@ app = defineControllerView "eclogues app" store $ \s () ->
 pageElement_ :: State -> Element
 pageElement_ State{..} = case page of
     JobList -> jobList_ jobs
-    AddJob  -> addJob_ submitStatus pspec
+    AddJob  -> addJob_ (isJust refreshError) submitStatus pspec
 
 appHeader_ :: Element
 appHeader_ = pageHeader_ "Eclogues Jobs"
@@ -161,8 +161,8 @@ jobList_ ss = table_ $ do
     thead_ $ tr_ $ th_ "Name" <> th_ "Stage"
     tbody_ $ mapM_ job_ ss
 
-addJob_ :: SubmitStatus -> PartialSpec -> Element
-addJob_ subSt s@PartialSpec{..} = form_ [className "form-horizontal"] $ do
+addJob_ :: Bool -> SubmitStatus -> PartialSpec -> Element
+addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizontal"] $ do
     rowChangingInput "name" "Name"    "text"   Nothing pname chkName
     rowChangingInput "cmd"  "Command" "text"   Nothing pcmd  Just
     rowChangingInput "cpu"  "CPU"     "number" (Just "dcores") pcpu  Just
@@ -205,7 +205,7 @@ addJob_ subSt s@PartialSpec{..} = form_ [className "form-horizontal"] $ do
         deps <- traverse Job.mkName _pdeps
         pure $ Job.mkSpec name cmd res paths _pstdout deps
     submit = traceShow s $ maybe [] (dispatchState . SubmitJob) mkSpec
-    cannotSubmit = subSt == Submitting || isNothing mkSpec
+    cannotSubmit = disableSubmit || subSt == Submitting || isNothing mkSpec
     interlines = T.intercalate "\n"
     splitLines = T.splitOn "\n"
 
