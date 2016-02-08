@@ -15,6 +15,7 @@ html js css = renderHtmlBuilder . docTypeHtml $ do
         title "Eclogues Jobs"
         meta ! charset "utf-8"
         link ! rel "stylesheet" ! href (fromString css)
+        script $ "window.eclogues_hostname = 'localhost';window.eclogues_port = 8000;"
     body $ do
         div ! id "app-container" $ empty
         script ! src (fromString js) $ empty

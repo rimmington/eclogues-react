@@ -10,6 +10,7 @@
 
 module Main where
 
+import qualified Awful
 import Components
 
 import Control.Concurrent (threadDelay)
@@ -85,7 +86,7 @@ createJob' :: Job.Spec -> EitherT ServantError IO ()
  :<|> _
  :<|> _
  :<|> createJob'
- :<|> _) = client (Proxy :: Proxy API) $ BaseUrl Http "localhost" 8000
+ :<|> _) = client (Proxy :: Proxy API) $ BaseUrl Http Awful.hostname Awful.port
 
 createJob :: Job.Spec -> IO (Maybe SubmitError)
 createJob j = either (Just . convError) (const Nothing) <$> runEitherT (createJob' j)
