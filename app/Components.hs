@@ -32,7 +32,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.Monoid ((<>))
 import Data.Text (Text)
-import GHCJS.Marshal (FromJSRef)
+import GHCJS.Marshal (FromJSVal)
 import React.Flux (
       ReactView, defineView, defineControllerView, viewWithKey
     , ReactStore, StoreData (..), SomeStoreAction (..), alterStore, mkStore
@@ -178,7 +178,7 @@ textarea_ ps = textarea [className "form-control"] ps empty
 inputType :: Text -> Prop Input
 inputType = txtProp "type"
 
-newValue :: (FromJSRef val) => F.Event -> val
+newValue :: (FromJSVal val) => F.Event -> val
 newValue evt = F.target evt "value"
 
 data Flavour = Success | Info | Warning | Danger deriving (Show, Eq)

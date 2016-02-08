@@ -30,7 +30,7 @@ import Data.Text.Encoding (decodeUtf8')
 import Eclogues.API (API)
 import qualified Eclogues.Job as Job
 import GHC.Generics (Generic)
-import GHCJS.Marshal (FromJSRef)
+import GHCJS.Marshal (FromJSVal)
 import Lens.Micro (Lens', ASetter', (^.), (.~), (&))
 import Lens.Micro.TH (makeLenses)
 import qualified Network.HTTP.Types.Status as HTTP
@@ -180,16 +180,16 @@ addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizonta
         SubmitFailure err -> p_ . elemText . T.unpack $ showError err
         _                 -> pure ()
   where
-    rowChangingInput :: (FromJSRef t, ToJSON a) => Text -> String -> Text -> Maybe String -> Lens' PartialSpec a -> (t -> Maybe a) -> Element
+    rowChangingInput :: (FromJSVal t, ToJSON a) => Text -> String -> Text -> Maybe String -> Lens' PartialSpec a -> (t -> Maybe a) -> Element
     rowChangingInput id_ lbl typ mAddStr l = formRow_ id_' lbl . addon . changingInput id_' typ l
       where
         id_' = "rowId" <> id_
         addon ip = case mAddStr of
             Nothing  -> ip
             Just str -> inputGroup_ $ ip <> inputAddon_ (elemText str)
-    changingInput :: (FromJSRef t, ToJSON a) => Text -> Text -> Lens' PartialSpec a -> (t -> Maybe a) -> Element
+    changingInput :: (FromJSVal t, ToJSON a) => Text -> Text -> Lens' PartialSpec a -> (t -> Maybe a) -> Element
     changingInput id_ typ l validate = input_ [htmlId id_, inputType typ, jsonValue (s ^. l), changing l validate]
-    changing :: (FromJSRef t, HasValue u) => ASetter' PartialSpec a -> (t -> Maybe a) -> Prop u
+    changing :: (FromJSVal t, HasValue u) => ASetter' PartialSpec a -> (t -> Maybe a) -> Prop u
     changing l validate = onChange $ \evt -> case validate $ newValue evt of
         Nothing -> []
         Just v  -> dispatchState . UpdatePSpec $ s & l .~ v

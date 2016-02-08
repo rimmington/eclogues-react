@@ -2,20 +2,20 @@
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
 resolver: lts-3.9
-compiler: ghcjs-0.2.0.20151001_ghc-7.10.2
+compiler: ghcjs-0.2.0.20151230.3_ghc-7.10.2
 compiler-check: match-exact
 setup-info:
   ghcjs:
     source:
-      ghcjs-0.2.0.20151001_ghc-7.10.2:
-        url: "https://github.com/fizruk/ghcjs/releases/download/v0.2.0.20151001/ghcjs-0.2.0.20151001.tar.gz"
+      ghcjs-0.2.0.20151230.3_ghc-7.10.2:
+        url: "https://github.com/nrolland/ghcjs/releases/download/v.0.2.0.20151230.3/ghcjs-0.2.0.20151230.3.tar.gz"
 
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
 - location:
     git: https://github.com/rimmington/ghcjs-servant-client
-    commit: dd9cdf67223b2c8dae17a53faa17f33424644cd7
+    commit: 4969fc65974743cef5c4d9bafe4e5c6cd6e3245c
   extra-dep: true
 - location:
     git: https://github.com/rimmington/eclogues
@@ -42,7 +42,7 @@ packages:
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- react-flux-1.0.1
+- react-flux-1.0.2
 - units-attoparsec-1.0
 - units-defs-2.0.0.1
 - units-parser-0.1.0.0
