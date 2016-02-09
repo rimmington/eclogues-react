@@ -226,7 +226,8 @@ addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizonta
     changing l validate = onChange $ \evt -> case validate $ newValue evt of
         Nothing -> []
         Just v  -> dispatchState . UpdatePSpec $ s & l .~ v
-    chkName = fmap Job.nameText . Job.mkName
+    chkName t | T.null t || isJust (Job.mkName t) = Just t
+              | otherwise                         = Nothing
     mkSpec = do
         name <- Job.mkName _pname
         cmd <- if T.null _pcmd then Nothing else Just _pcmd
