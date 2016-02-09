@@ -47,11 +47,14 @@ data State = State { page         :: Page
                    , jobs         :: [Job.Status]
                    , refreshError :: Maybe SubmitError
                    , pspec        :: PartialSpec
-                   , submitStatus :: SubmitStatus }
+                   , submitStatus :: SubmitStatus
+                   , listView     :: ListView }
 
 data Page = JobList
           | AddJob
           deriving (Eq, Generic, NFData)
+
+data ListView = ListView { filterKey :: Maybe Job.Name }
 
 data SubmitStatus = NotSubmitted
                   | Submitting
@@ -94,9 +97,13 @@ createJob j = either (Just . convError) (const Nothing) <$> runEitherT (createJo
 defPartialSpec :: PartialSpec
 defPartialSpec = PartialSpec "" "" 10 10 1 60 [] False []
 
+defListView :: ListView
+defListView = ListView Nothing
+
 data Action = RefreshInit
             | RefreshReturn (Either SubmitError [Job.Status])
             | SwitchPage Page
+            | UpdateFilterKey (Maybe Job.Name)
             | UpdatePSpec PartialSpec
             | SubmitJob Job.Spec
             | SubmitReturn (Maybe SubmitError)
@@ -111,6 +118,7 @@ instance StoreData State where
             Right jobs' -> s{ jobs = jobs', refreshError = Nothing }
             Left  err   -> s{ refreshError = Just err }
     transform (SwitchPage np) s         = pure $ s{ page = np }
+    transform (UpdateFilterKey k) s     = pure $ s{ listView = ListView k }
     transform (UpdatePSpec p) s         = pure $ s{ pspec = p }
     transform (SubmitJob j)   s         = do
         _ <- async $ alterStore store . SubmitReturn =<< createJob j
@@ -126,7 +134,7 @@ updateJobs = void . async $ runEitherT getJobs >>= \r ->
     alterStore store . RefreshReturn $ first convError r
 
 store :: ReactStore State
-store = mkStore $ State JobList [] Nothing defPartialSpec NotSubmitted
+store = mkStore $ State JobList [] Nothing defPartialSpec NotSubmitted defListView
 
 dispatchState :: Action -> [SomeStoreAction]
 dispatchState a = [SomeStoreAction store a]
@@ -137,11 +145,11 @@ app = defineControllerView "eclogues app" store $ \s () ->
         appHeader_
         mapM_ (alert_ Danger . elemText . T.unpack . showError) $ refreshError s
         links_ $ page s
-        section_ [htmlId "main", style (marginTop "3ex" mempty)] $ pageElement_ s
+        section_ [htmlId "main"] $ pageElement_ s
 
 pageElement_ :: State -> Element
 pageElement_ State{..} = case page of
-    JobList -> jobList_ jobs
+    JobList -> jobList_ jobs listView
     AddJob  -> addJob_ (isJust refreshError) submitStatus pspec
 
 appHeader_ :: Element
@@ -157,19 +165,43 @@ links_ cur = tabs_ $ do
     goto :: Page -> Prop Link
     goto dest = onClick $ \_ _ -> dispatchState $ SwitchPage dest
 
-jobList_ :: [Job.Status] -> Element
-jobList_ ss = table_ $ do
-    thead_ $ tr_ $ th_ "Name" <> th_ "Stage"
-    tbody_ $ mapM_ job_ ss
+jobList_ :: [Job.Status] -> ListView -> Element
+jobList_ ss lv = do
+    filterBox_ lv
+    table_ $ do
+        thead_ . tr_ $ th_ "Name" <> th_ "Stage"
+        tbody_ . mapM_ job_ $ applyListView lv ss
+
+filterBox_ :: ListView -> Element
+filterBox_ lv = form_
+    . inputGroup_ [style $ marginX "auto" <> marginTop "2ex" <> marginLow "1ex"]
+    $ input_ [ inputType "text"
+             , value $ maybe "" Job.nameText cur
+             , onChange change
+             , placeholder "Filter by name"
+             , style $ width "20em" ]
+  where
+    cur = filterKey lv
+    change evt = dispatchState . UpdateFilterKey $ case newValue evt of
+        txt | T.null txt               -> Nothing
+            | Just n <- Job.mkName txt -> Just n
+            | otherwise                -> cur
+
+applyListView :: ListView -> [Job.Status] -> [Job.Status]
+applyListView (ListView Nothing)  = id
+applyListView (ListView (Just k)) =
+    filter $ (t `T.isInfixOf`) . Job.nameText . (^. Job.name)
+  where
+    t = Job.nameText k
 
 addJob_ :: Bool -> SubmitStatus -> PartialSpec -> Element
-addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizontal"] $ do
+addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizontal", style $ marginTop "3ex"] $ do
     rowChangingInput "name" "Name"    "text"   Nothing pname chkName
     rowChangingInput "cmd"  "Command" "text"   Nothing pcmd  Just
     rowChangingInput "cpu"  "CPU"     "number" (Just "dcores") pcpu  Just
-    rowChangingInput "ram"  "RAM"     "number" (Just "MB")    pram  Just
-    rowChangingInput "disk" "Disk"    "number" (Just "MB")    pdisk Just
-    rowChangingInput "time" "Time"    "number" (Just "s")     ptime Just
+    rowChangingInput "ram"  "RAM"     "number" (Just "MB")     pram  Just
+    rowChangingInput "disk" "Disk"    "number" (Just "MB")     pdisk Just
+    rowChangingInput "time" "Time"    "number" (Just "s")      ptime Just
     formRow_ "rowIdofp" "Output file paths" $
         textarea_ [htmlId "rowIdofp", value $ interlines _ppaths, changing ppaths (Just . splitLines)]
     rowChangingInput "stdo" "Capture stdout" "checkbox" Nothing pstdout Just

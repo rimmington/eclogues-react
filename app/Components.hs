@@ -17,12 +17,12 @@ module Components (
     , table_, thead_, tbody_, tr_, th_, td_
     , tabs_, tab_
     , form_, formGroup_, formRow_, formUnlabelledRow_, inputGroup_, inputAddon_
-    , input_, textarea_, onChange, newValue, value, jsonValue, inputType
+    , input_, textarea_, onChange, newValue, value, jsonValue, inputType, placeholder
     , button_, disabled
     , Flavour (..), alert_
     , elemText
     , htmlId, className, classNames, reactKey
-    , style, marginTop
+    , style, marginTop, marginLow, marginLeft, marginRight, marginX, marginY, width
     ) where
 
 import Components.TH (mkContainer, mkRawElem)
@@ -67,14 +67,39 @@ classNames = Prop . F.classNames
 role :: Text -> Prop a
 role = txtProp "role"
 
-newtype Style = Style { _unStyle :: [Aeson.Pair] }
-              deriving (Monoid)
+newtype Style = Style { _unStyle :: [Aeson.Pair] -> [Aeson.Pair] }
+
+instance Monoid Style where
+    mempty = Style id
+    (Style a) `mappend` (Style b) = Style $ b . a
+    {-# INLINE mappend #-}
 
 style :: Style -> Prop a
-style (Style ps) = Prop $ "style" @= Aeson.object ps
+style (Style psf) = Prop $ "style" @= Aeson.object (psf [])
 
-marginTop :: Text -> Style -> Style
-marginTop v (Style ps) = Style $ ("marginTop", Aeson.String v) : ps
+txtStyle :: Text -> Text -> Style
+txtStyle k v = Style $ ((k, Aeson.String v) :)
+
+marginY :: Text -> Style
+marginY v = marginTop v <> marginLow v
+
+marginTop :: Text -> Style
+marginTop = txtStyle "marginTop"
+
+marginLow :: Text -> Style
+marginLow = txtStyle "marginBottom"
+
+marginX :: Text -> Style
+marginX v = marginLeft v <> marginRight v
+
+marginLeft :: Text -> Style
+marginLeft = txtStyle "marginLeft"
+
+marginRight :: Text -> Style
+marginRight = txtStyle "marginRight"
+
+width :: Text -> Style
+width = txtStyle "width"
 
 data Button
 data GenContainer
@@ -157,8 +182,8 @@ for = txtProp "htmlFor"
 formGroup_ :: Element -> Element
 formGroup_ = div_ [className "form-group"]
 
-inputGroup_ :: Element -> Element
-inputGroup_ = div_ [className "input-group"]
+inputGroup_ :: Container GenContainer
+inputGroup_ = htmlDiv [className "input-group"]
 
 inputAddon_ :: Element -> Element
 inputAddon_ = span_ [className "input-group-addon"]
@@ -177,6 +202,9 @@ textarea_ ps = textarea [className "form-control"] ps empty
 
 inputType :: Text -> Prop Input
 inputType = txtProp "type"
+
+placeholder :: Text -> Prop Input
+placeholder = txtProp "placeholder"
 
 newValue :: (FromJSVal val) => F.Event -> val
 newValue evt = F.target evt "value"
