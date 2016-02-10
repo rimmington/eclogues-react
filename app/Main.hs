@@ -6,6 +6,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Main where
@@ -19,12 +20,16 @@ import Control.DeepSeq (NFData)
 import Control.Monad (void)
 import Control.Monad.Trans.Either (EitherT, runEitherT)
 import Data.Aeson (ToJSON)
-import Data.Bifunctor (first)
-import Data.Maybe (isNothing, isJust)
+import Data.Bifunctor (bimap)
+import Data.Function (on)
+import Data.Maybe (isNothing, isJust, listToMaybe)
 import Data.Metrology.Computing (Byte (Byte), Core (Core), (%>))
 import Data.Metrology.SI (Second (Second), mega, centi)
 import Data.Monoid ((<>))
+import Data.Ord (comparing)
 import Data.Proxy (Proxy (Proxy))
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8')
@@ -43,18 +48,37 @@ import Servant.Common.Req (ServantError)
 
 import Debug.Trace (traceShow)
 
+newtype Status = Status { unStatus :: Job.Status }
+               deriving (Show, Generic, NFData)
+
+type StatusKey = Job.Name
+
+statusKey :: Status -> StatusKey
+statusKey = (^. Job.name) . unStatus
+
+instance Eq Status where
+    (==) = (==) `on` statusKey
+
+instance Ord Status where
+    compare = comparing statusKey
+
 data State = State { page         :: Page
-                   , jobs         :: [Job.Status]
+                   , statuses     :: Set Status
                    , refreshError :: Maybe SubmitError
                    , pspec        :: PartialSpec
                    , submitStatus :: SubmitStatus
-                   , listView     :: ListView }
+                   , listZoom     :: ListZoom }
 
 data Page = JobList
           | AddJob
           deriving (Eq, Generic, NFData)
 
-data ListView = ListView { filterKey :: Maybe Job.Name }
+data ListZoom = ListZoom { filterKey :: Maybe StatusKey
+                         , topKey    :: Maybe StatusKey }
+              deriving (Generic, NFData)
+
+data ListView = ListView { prevSpan :: [Status]
+                         , curSpan  :: [Status] }
 
 data SubmitStatus = NotSubmitted
                   | Submitting
@@ -97,13 +121,16 @@ createJob j = either (Just . convError) (const Nothing) <$> runEitherT (createJo
 defPartialSpec :: PartialSpec
 defPartialSpec = PartialSpec "" "" 10 10 1 60 [] False []
 
-defListView :: ListView
-defListView = ListView Nothing
+defListZoom :: ListZoom
+defListZoom = ListZoom Nothing Nothing
+
+listMax :: Word
+listMax = 2
 
 data Action = RefreshInit
-            | RefreshReturn (Either SubmitError [Job.Status])
+            | RefreshReturn (Either SubmitError (Set Status))
             | SwitchPage Page
-            | UpdateFilterKey (Maybe Job.Name)
+            | UpdateListZoom ListZoom
             | UpdatePSpec PartialSpec
             | SubmitJob Job.Spec
             | SubmitReturn (Maybe SubmitError)
@@ -115,10 +142,10 @@ instance StoreData State where
     transform (RefreshReturn r)  s      = do
         _ <- async $ threadDelay 1000000 *> alterStore store RefreshInit
         pure $ case r of
-            Right jobs' -> s{ jobs = jobs', refreshError = Nothing }
+            Right ss'   -> s{ statuses = ss', refreshError = Nothing }
             Left  err   -> s{ refreshError = Just err }
     transform (SwitchPage np) s         = pure $ s{ page = np }
-    transform (UpdateFilterKey k) s     = pure $ s{ listView = ListView k }
+    transform (UpdateListZoom lz) s     = pure $ s{ listZoom = lz }
     transform (UpdatePSpec p) s         = pure $ s{ pspec = p }
     transform (SubmitJob j)   s         = do
         _ <- async $ alterStore store . SubmitReturn =<< createJob j
@@ -131,10 +158,10 @@ instance StoreData State where
 -- TODO: handle errors more gracefully
 updateJobs :: IO ()
 updateJobs = void . async $ runEitherT getJobs >>= \r ->
-    alterStore store . RefreshReturn $ first convError r
+    alterStore store . RefreshReturn $ bimap convError (Set.fromList . fmap Status) r
 
 store :: ReactStore State
-store = mkStore $ State JobList [] Nothing defPartialSpec NotSubmitted defListView
+store = mkStore $ State JobList Set.empty Nothing defPartialSpec NotSubmitted defListZoom
 
 dispatchState :: Action -> [SomeStoreAction]
 dispatchState a = [SomeStoreAction store a]
@@ -149,7 +176,7 @@ app = defineControllerView "eclogues app" store $ \s () ->
 
 pageElement_ :: State -> Element
 pageElement_ State{..} = case page of
-    JobList -> jobList_ jobs listView
+    JobList -> statusList_ statuses listZoom
     AddJob  -> addJob_ (isJust refreshError) submitStatus pspec
 
 appHeader_ :: Element
@@ -165,34 +192,63 @@ links_ cur = tabs_ $ do
     goto :: Page -> Prop Link
     goto dest = onClick $ \_ _ -> dispatchState $ SwitchPage dest
 
-jobList_ :: [Job.Status] -> ListView -> Element
-jobList_ ss lv = do
-    filterBox_ lv
+statusList_ :: Set Status -> ListZoom -> Element
+statusList_ ss lz = do
+    pagination_ lz lv
     table_ $ do
-        thead_ . tr_ $ th_ "Name" <> th_ "Stage"
-        tbody_ . mapM_ job_ $ applyListView lv ss
+        thead_ . tr_ $ th_ [style $ width "50%"] "Name" <> th_ "Stage"
+        tbody_ . mapM_ statusRow_ $ take (fromIntegral listMax) (curSpan lv)
+  where
+    lv = lzoom lz ss
 
-filterBox_ :: ListView -> Element
-filterBox_ lv = form_
-    . inputGroup_ [style $ marginX "auto" <> marginTop "2ex" <> marginLow "1ex"]
+pagination_ :: ListZoom -> ListView -> Element
+pagination_ lz@ListZoom{..} ListView{..} = ul_ [className "pager", style topStyle] $ do
+    but prev "previous" (arr "← " <> "Previous") $ isJust topKey
+    li_ [style displayCell] $ filterBox_ lz
+    but next "next" ("Next" <> arr " →") $ listMaxInt < length curSpan
+  where
+    topStyle = width "100%" <> displayTable
+            <> marginX "auto" <> marginTop "2ex" <> marginLow "1ex"
+    endStyle = displayCell <> width "20ex"
+    next _ _ = updateTop $ statusKey <$> listToMaybe (drop listMaxInt curSpan)
+    prev _ _ = if dropping <= 0
+        then updateTop Nothing
+        else updateTop $ statusKey <$> listToMaybe (drop dropping prevSpan)
+      where
+        dropping = length prevSpan - listMaxInt
+    updateTop k = dispatchState $ UpdateListZoom lz{ topKey = k }
+    listMaxInt = fromIntegral listMax
+    but f cls bdy prd = li_ [className cls', style endStyle]
+        . a_ (href "#" : clk) $ bdy
+      where
+        clk | prd       = [onClick f]
+            | otherwise = []
+        cls' | prd       = cls
+             | otherwise = cls <> " disabled"
+    arr = span_ [ariaHidden True]
+
+filterBox_ :: ListZoom -> Element
+filterBox_ lz = form_ . inputGroup_ [style $ marginX "auto"]
     $ input_ [ inputType "text"
              , value $ maybe "" Job.nameText cur
              , onChange change
              , placeholder "Filter by name"
              , style $ width "20em" ]
   where
-    cur = filterKey lv
-    change evt = dispatchState . UpdateFilterKey $ case newValue evt of
+    cur = filterKey lz
+    change evt = dispatchState $ UpdateListZoom lz{ filterKey = case newValue evt of
         txt | T.null txt               -> Nothing
             | Just n <- Job.mkName txt -> Just n
-            | otherwise                -> cur
+            | otherwise                -> cur }
 
-applyListView :: ListView -> [Job.Status] -> [Job.Status]
-applyListView (ListView Nothing)  = id
-applyListView (ListView (Just k)) =
-    filter $ (t `T.isInfixOf`) . Job.nameText . (^. Job.name)
+lzoom :: ListZoom -> Set Status -> ListView
+lzoom ListZoom{..} = uncurry ListView . paginate . filterF . Set.toAscList
   where
-    t = Job.nameText k
+    filterF | Just k <- filterKey = let t = Job.nameText k
+                                    in filter $ (t `T.isInfixOf`) . Job.nameText . statusKey
+            | otherwise           = id
+    paginate | Just k <- topKey   = span $ (< k) . statusKey
+             | otherwise          = ([],)
 
 addJob_ :: Bool -> SubmitStatus -> PartialSpec -> Element
 addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizontal", style $ marginTop "3ex"] $ do
@@ -243,19 +299,19 @@ addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizonta
     interlines = T.intercalate "\n"
     splitLines = T.splitOn "\n"
 
-job :: ReactView Job.Status
-job = defineView "job" $ \s ->
-    let name = jobNameString s
-    in  tr_ $ td "name" name <> td "stage" (Job.majorStage $ s ^. Job.stage)
+statusRow :: ReactView Status
+statusRow = defineView "status-row" $ \s ->
+    let name = statusKeyStr s
+    in  tr_ $ td "name" name <> td "stage" (Job.majorStage $ (unStatus s) ^. Job.stage)
   where
     td :: String -> String -> Element
     td k = td_ [reactKey k] . elemText
 
-job_ :: Job.Status -> Element
-job_ s = viewWithKey job (jobNameString s) s mempty
+statusRow_ :: Status -> Element
+statusRow_ s = viewWithKey statusRow (statusKeyStr s) s mempty
 
-jobNameString :: Job.Status -> String
-jobNameString = T.unpack . Job.nameText . (^. Job.name)
+statusKeyStr :: Status -> String
+statusKeyStr = T.unpack . Job.nameText . statusKey
 
 -- TODO: What happened to ConnectionError in ghcjs-servant-client?
 convError :: ServantError -> SubmitError

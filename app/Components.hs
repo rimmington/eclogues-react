@@ -15,6 +15,7 @@ module Components (
     , div_, p_, span_
     , a_, href, onClick
     , table_, thead_, tbody_, tr_, th_, td_
+    , ul_, li_
     , tabs_, tab_
     , form_, formGroup_, formRow_, formUnlabelledRow_, inputGroup_, inputAddon_
     , input_, textarea_, onChange, newValue, value, jsonValue, inputType, placeholder
@@ -22,7 +23,9 @@ module Components (
     , Flavour (..), alert_
     , elemText
     , htmlId, className, classNames, reactKey
-    , style, marginTop, marginLow, marginLeft, marginRight, marginX, marginY, width
+    , style, width, displayTable, displayCell
+    , marginTop, marginLow, marginLeft, marginRight, marginX, marginY
+    , ariaHidden
     ) where
 
 import Components.TH (mkContainer, mkRawElem)
@@ -67,6 +70,9 @@ classNames = Prop . F.classNames
 role :: Text -> Prop a
 role = txtProp "role"
 
+ariaHidden :: Bool -> Prop a
+ariaHidden = jsonProp "aria-hidden"
+
 newtype Style = Style { _unStyle :: [Aeson.Pair] -> [Aeson.Pair] }
 
 instance Monoid Style where
@@ -101,6 +107,12 @@ marginRight = txtStyle "marginRight"
 width :: Text -> Style
 width = txtStyle "width"
 
+displayTable :: Style
+displayTable = txtStyle "display" "table"
+
+displayCell :: Style
+displayCell = txtStyle "display" "table-cell"
+
 data Button
 data GenContainer
 data Input
@@ -134,7 +146,7 @@ $(mkRawElem ''Input "input")
 $(mkRawElem ''OtherInput "textarea")
 
 $(concat <$> traverse (mkContainer ''GenContainer)
-    ["h1", "li", "section", "form", "tr", "td", "th", "thead", "tbody", "p"])
+    ["h1", "ul", "li", "section", "form", "tr", "td", "th", "thead", "tbody", "p"])
 $(mkContainer ''Label "label")
 $(mkContainer ''Link "a")
 
