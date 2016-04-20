@@ -5,8 +5,8 @@ description:         Please see README.md
 homepage:            http://github.com/rimmington/eclogues-react#readme
 license:             BSD3
 license-file:        LICENSE
-maintainer:          Rhys Adams <rhysadams@swin.edu.au>
-copyright:           2015 Rhys Adams
+maintainer:          Rhys Adams <rhys.adams@deakin.edu.au>
+copyright:           (c) 2015 Deakin Software and Technology Innovation Lab
 category:            Web
 build-type:          Simple
 -- extra-source-files:
