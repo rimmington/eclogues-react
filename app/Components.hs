@@ -178,7 +178,7 @@ tab_ :: Bool -> Element -> Element
 tab_ active = li_ [role "presentation", classNames [("active", active)]]
 
 formRow_ :: Text -> String -> Element -> Element
-formRow_ id_ lbl = formGroup_ . (lblElem <>) . div_ [className "col-md-10"]
+formRow_ id_ lbl = formGroup_ [reactKey id_] . (lblElem <>) . div_ [className "col-md-10"]
   where
     lblElem = label_ [for id_, className "col-md-2 control-label"] $ elemText lbl
 
@@ -191,8 +191,8 @@ href = txtProp "href"
 for :: Text -> Prop Label
 for = txtProp "htmlFor"
 
-formGroup_ :: Element -> Element
-formGroup_ = div_ [className "form-group"]
+formGroup_ :: Container GenContainer
+formGroup_ = htmlDiv [className "form-group"]
 
 inputGroup_ :: Container GenContainer
 inputGroup_ = htmlDiv [className "input-group"]
