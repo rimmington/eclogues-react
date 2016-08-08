@@ -302,7 +302,7 @@ addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizonta
 statusRow :: ReactView Status
 statusRow = defineView "status-row" $ \s ->
     let name = statusKeyStr s
-    in  tr_ $ td "name" name <> td "stage" (Job.majorStage $ (unStatus s) ^. Job.stage)
+    in  tr_ $ td "name" name <> td "stage" (Job.majorStage $ unStatus s ^. Job.stage)
   where
     td :: String -> String -> Element
     td k = td_ [reactKey k] . elemText

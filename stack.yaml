@@ -19,7 +19,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/rimmington/eclogues
-    commit: efb6e8b863072c7f5a7c892bfac662c185334273
+    commit: 07c1444c3f547b2f42d7b6e325178dce2a6908bf
   extra-dep: true
   subdirs:
   - eclogues
@@ -28,7 +28,7 @@ packages:
     commit: 634f244564444ea4b700bcfca1211c261bcecf9f
   extra-dep: true
 - location:
-    git: https://github.com/ssilab/digital-metrology-frontiers
+    git: https://github.com/dstil/digital-metrology-frontiers
     commit: 87053f6e5892df1f1d7dc3bf85ee2677e7a41bf8
   extra-dep: true
 - location:
@@ -46,7 +46,8 @@ extra-deps:
 - units-attoparsec-1.0
 - units-defs-2.0.0.1
 - units-parser-0.1.0.0
-- microlens-0.3.4.0
+- microlens-0.4.2.0
+- microlens-th-0.3.0.1
 
 # Override default flag values for local packages and extra-deps
 flags: {}

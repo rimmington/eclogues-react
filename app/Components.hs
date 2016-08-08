@@ -67,8 +67,8 @@ className = txtProp "className"
 classNames :: [(Text, Bool)] -> Prop a
 classNames = Prop . F.classNames
 
-role :: Text -> Prop a
-role = txtProp "role"
+htmlRole :: Text -> Prop a
+htmlRole = txtProp "role"
 
 ariaHidden :: Bool -> Prop a
 ariaHidden = jsonProp "aria-hidden"
@@ -84,7 +84,7 @@ style :: Style -> Prop a
 style (Style psf) = Prop $ "style" @= Aeson.object (psf [])
 
 txtStyle :: Text -> Text -> Style
-txtStyle k v = Style $ ((k, Aeson.String v) :)
+txtStyle k v = Style ((k, Aeson.String v) :)
 
 marginY :: Text -> Style
 marginY v = marginTop v <> marginLow v
@@ -175,7 +175,7 @@ tabs_ :: Element -> Element
 tabs_ = F.nav_ . F.ul_ ["className" $= "nav nav-tabs"]
 
 tab_ :: Bool -> Element -> Element
-tab_ active = li_ [role "presentation", classNames [("active", active)]]
+tab_ active = li_ [htmlRole "presentation", classNames [("active", active)]]
 
 formRow_ :: Text -> String -> Element -> Element
 formRow_ id_ lbl = formGroup_ [reactKey id_] . (lblElem <>) . div_ [className "col-md-10"]
@@ -230,4 +230,4 @@ flavourSuffix Warning = "warning"
 flavourSuffix Danger  = "danger"
 
 alert_ :: Flavour -> Element -> Element
-alert_ flav = div_ [className $ "alert alert-" <> flavourSuffix flav, role "alert"]
+alert_ flav = div_ [className $ "alert alert-" <> flavourSuffix flav, htmlRole "alert"]

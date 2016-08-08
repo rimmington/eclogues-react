@@ -11,8 +11,10 @@ foreign import javascript unsafe "window['eclogues_hostname']"
 foreign import javascript unsafe "window['eclogues_port']"
     getPort :: IO Int
 
+{-# NOINLINE hostname #-}
 hostname :: String
-hostname = unpack $ unsafePerformIO getHostname
+hostname = unsafePerformIO $ unpack <$> getHostname
 
+{-# NOINLINE port #-}
 port :: Int
 port = unsafePerformIO getPort
