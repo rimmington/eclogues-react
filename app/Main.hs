@@ -22,7 +22,7 @@ import Control.Monad (void)
 import Control.Monad.Trans.Either (EitherT, runEitherT)
 import Data.Bifunctor (bimap)
 import Data.Function (on)
-import Data.Maybe (isNothing, isJust, listToMaybe)
+import Data.Maybe (fromMaybe, isNothing, isJust, listToMaybe)
 import Data.Metrology.Computing (Byte (Byte), Core (Core), (%>))
 import Data.Metrology.SI (Second (Second), mega, centi)
 import Data.Monoid ((<>))
@@ -68,6 +68,7 @@ data State = State { page         :: Page
                    , refreshError :: Maybe SubmitError
                    , pspec        :: PartialSpec
                    , submitStatus :: SubmitStatus
+                   , deleteStatus :: DeleteStatus
                    , listZoom     :: ListZoom }
 
 data Page = JobList
@@ -84,6 +85,9 @@ data ListView = ListView { prevSpan :: [Status]
 data SubmitStatus = NotSubmitted
                   | Submitting
                   | SubmitFailure SubmitError
+                  deriving (Eq, Generic, NFData)
+
+data DeleteStatus = DeleteStatus Job.Name SubmitStatus
                   deriving (Eq, Generic, NFData)
 
 data SubmitError = InvalidResponse Text
@@ -105,19 +109,20 @@ data PartialSpec = PartialSpec { _pname   :: Text
 $(makeLenses ''PartialSpec)
 
 getJobs :: EitherT ServantError IO [Job.Status]
-createJob' :: Job.Spec -> EitherT ServantError IO ()
+deleteJob :: Job.Name -> EitherT ServantError IO ()
+createJob :: Job.Spec -> EitherT ServantError IO ()
 (     getJobs
  :<|> _
  :<|> _
  :<|> _
  :<|> _
  :<|> _
- :<|> _
- :<|> createJob'
+ :<|> deleteJob
+ :<|> createJob
  :<|> _) = client (Proxy :: Proxy API) $ BaseUrl Http Awful.hostname Awful.port
 
-createJob :: Job.Spec -> IO (Maybe SubmitError)
-createJob j = either (Just . convError) (const Nothing) <$> runEitherT (createJob' j)
+justError :: EitherT ServantError IO () -> IO (Maybe SubmitError)
+justError = fmap (either (Just . convError) (const Nothing)) . runEitherT
 
 defPartialSpec :: PartialSpec
 defPartialSpec = PartialSpec "" "" 10 10 1 60 [] False []
@@ -135,6 +140,8 @@ data Action = RefreshInit
             | UpdatePSpec PartialSpec
             | SubmitJob Job.Spec
             | SubmitReturn (Maybe SubmitError)
+            | DeleteJob Job.Name
+            | DeleteReturn Job.Name (Maybe SubmitError)
             deriving (Generic, NFData)
 
 instance StoreData State where
@@ -149,20 +156,28 @@ instance StoreData State where
     transform (UpdateListZoom lz) s     = pure $ s{ listZoom = lz }
     transform (UpdatePSpec p) s         = pure $ s{ pspec = p }
     transform (SubmitJob j)   s         = do
-        _ <- async $ alterStore store . SubmitReturn =<< createJob j
+        _ <- async $ alterStore store . SubmitReturn =<< justError (createJob j)
         pure $ s{ submitStatus = Submitting }
-    transform (SubmitReturn Nothing) s  = pure $ s{ submitStatus = NotSubmitted
+    transform (SubmitReturn Nothing)    s = pure s{ submitStatus = NotSubmitted
                                                   , pspec = defPartialSpec
                                                   , page = JobList }
-    transform (SubmitReturn (Just e)) s = pure $ s{ submitStatus = SubmitFailure e }
+    transform (SubmitReturn (Just e))   s = pure s{ submitStatus = SubmitFailure e }
+    transform (DeleteJob n)             s = do
+        _ <- async $ alterStore store . DeleteReturn n =<< justError (deleteJob n)
+        pure s{ deleteStatus = DeleteStatus defName NotSubmitted }
+    transform (DeleteReturn n (Just e)) s = pure s{ deleteStatus = DeleteStatus n $ SubmitFailure e }
+    transform (DeleteReturn n Nothing)  s = pure s{ deleteStatus = DeleteStatus n NotSubmitted}
 
 -- TODO: handle errors more gracefully
 updateJobs :: IO ()
 updateJobs = void . async $ runEitherT getJobs >>= \r ->
     alterStore store . RefreshReturn $ bimap convError (Set.fromList . fmap Status) r
 
+defName :: Job.Name
+defName = fromMaybe (error "invalid defName") $ Job.mkName "-"
+
 store :: ReactStore State
-store = mkStore $ State JobList Set.empty Nothing defPartialSpec NotSubmitted defListZoom
+store = mkStore $ State JobList Set.empty Nothing defPartialSpec NotSubmitted (DeleteStatus defName NotSubmitted) defListZoom
 
 dispatchState :: Action -> [SomeStoreAction]
 dispatchState a = [SomeStoreAction store a]
@@ -172,6 +187,10 @@ app = defineControllerView "eclogues app" store $ \s () ->
     pageContainer_ $ do
         appHeader_
         mapM_ (alert_ Danger . elemText . T.unpack . showError) $ refreshError s
+        case deleteStatus s of
+            DeleteStatus n (SubmitFailure e) ->
+              alert_ Danger . elemText . T.unpack $ "Error deleting " <> Job.nameText n <> ": " <> showError e
+            _                                -> pure ()
         links_ $ page s
         section_ [htmlId "main"] $ pageElement_ s
 
@@ -197,7 +216,7 @@ statusList_ :: Set Status -> ListZoom -> Element
 statusList_ ss lz = do
     pagination_ lz lv
     table_ $ do
-        thead_ . tr_ $ th_ [style $ width "50%"] "Name" <> th_ "Stage" <> th_ "Output"
+        thead_ . tr_ $ th_ [style $ width "50%"] "Name" <> th_ "Stage" <> th_ "Output" <> th_ "Delete"
         tbody_ . mapM_ statusRow_ $ take (fromIntegral listMax) (curSpan lv)
   where
     lv = lzoom lz ss
@@ -318,12 +337,13 @@ addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizonta
 statusRow :: ReactView Status
 statusRow = defineView "status-row" $ \s ->
     tr_ $ do
-      td "name" $ statusKeyStr s
-      td "stage" (Job.majorStage $ unStatus s ^. Job.stage)
-      td_ [reactKey ("output" :: String)] $ a_ [href . jobStdoutUrl $ statusKey s] "stdout"
+      td "name"   . elemText $ statusKeyStr s
+      td "stage"  . elemText . Job.majorStage $ unStatus s ^. Job.stage
+      td "output" $ a_ [href . jobStdoutUrl $ statusKey s] "stdout"
+      td "delete" $ button_ [onClick $ \_ _ -> dispatchState . DeleteJob $ statusKey s] "Delete"
   where
-    td :: String -> String -> Element
-    td k = td_ [reactKey k] . elemText
+    td :: String -> Element -> Element
+    td k = td_ [reactKey k]
 
 statusRow_ :: Status -> Element
 statusRow_ s = viewWithKey statusRow (statusKeyStr s) s mempty
