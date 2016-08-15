@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -19,7 +20,6 @@ import Control.Concurrent.Async (async)
 import Control.DeepSeq (NFData)
 import Control.Monad (void)
 import Control.Monad.Trans.Either (EitherT, runEitherT)
-import Data.Aeson (ToJSON)
 import Data.Bifunctor (bimap)
 import Data.Function (on)
 import Data.Maybe (isNothing, isJust, listToMaybe)
@@ -36,8 +36,7 @@ import Data.Text.Encoding (decodeUtf8')
 import Eclogues.API (API, JobOutput)
 import qualified Eclogues.Job as Job
 import GHC.Generics (Generic)
-import GHCJS.Marshal (FromJSVal)
-import Lens.Micro (Lens', ASetter', (^.), (.~), (&))
+import Lens.Micro (Lens', (^.), (.~), (&), lens)
 import Lens.Micro.TH (makeLenses)
 import qualified Network.HTTP.Types.Status as HTTP
 import Network.URI (URI (..), URIAuth (..), uriToString)
@@ -231,14 +230,13 @@ pagination_ lz@ListZoom{..} ListView{..} = ul_ [className "pager", style topStyl
 
 filterBox_ :: ListZoom -> Element
 filterBox_ lz = form_ . inputGroup_ [style $ marginX "auto"]
-    $ input_ [ inputType "text"
-             , value $ maybe "" Job.nameText cur
+    $ input_ [ value $ maybe "" Job.nameText cur
              , onChange change
              , placeholder "Filter by name"
              , style $ width "20em" ]
   where
     cur = filterKey lz
-    change evt = dispatchState $ UpdateListZoom lz{ filterKey = case newValue evt of
+    change _ val = dispatchState $ UpdateListZoom lz{ filterKey = case val of
         txt | T.null txt               -> Nothing
             | Just n <- Job.mkName txt -> Just n
             | otherwise                -> cur }
@@ -252,38 +250,51 @@ lzoom ListZoom{..} = uncurry ListView . paginate . filterF . Set.toAscList
     paginate | Just k <- topKey   = span $ (< k) . statusKey
              | otherwise          = ([],)
 
+data NotAPrism s b = forall a. NotAPrism !(Lens' s a) !(a -> b) !(b -> Maybe a)
+pset :: NotAPrism s b -> s -> b -> Maybe s
+pset (NotAPrism l _ fba) s b = case fba b of
+    Nothing -> Nothing
+    Just a  -> Just $ s & l .~ a
+{-# INLINE pset #-}
+pget :: s -> NotAPrism s b -> b
+pget s (NotAPrism l fab _) = fab $ s ^. l
+{-# INLINE pget #-}
+pid :: NotAPrism a a
+pid = NotAPrism (lens id const) id Just
+{-# INLINE pid #-}
+jusp :: Lens' a s -> NotAPrism a s
+jusp l = NotAPrism l id Just
+{-# INLINE jusp #-}
+
 addJob_ :: Bool -> SubmitStatus -> PartialSpec -> Element
 addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizontal", style $ marginTop "3ex"] $ do
-    rowChangingInput "name" "Name"    "text"   Nothing pname chkName
-    rowChangingInput "cmd"  "Command" "text"   Nothing pcmd  Just
-    rowChangingInput "cpu"  "CPU"     "number" (Just "dcores") pcpu  Just
-    rowChangingInput "ram"  "RAM"     "number" (Just "MB")     pram  Just
-    rowChangingInput "disk" "Disk"    "number" (Just "MB")     pdisk Just
-    rowChangingInput "time" "Time"    "number" (Just "s")      ptime Just
-    formRow_ "rowIdofp" "Output file paths" $
-        textarea_ [htmlId "rowIdofp", value $ interlines _ppaths, changing ppaths (Just . splitLines)]
-    rowChangingInput "stdo" "Capture stdout" "checkbox" Nothing pstdout Just
-    formRow_ "rowIddeps" "Dependencies" $
-        textarea_ [htmlId "rowIddeps", value $ interlines _pdeps, changing pdeps (Just . splitLines)]
+    rowChangingInput "name" "Name"              input_     Nothing         $ NotAPrism pname id chkName
+    rowChangingInput "cmd"  "Command"           input_     Nothing         $ jusp pcmd
+    rowChangingInput "cpu"  "CPU"               wordInput_ (Just "dcores") $ jusp pcpu
+    rowChangingInput "ram"  "RAM"               wordInput_ (Just "MB")     $ jusp pram
+    rowChangingInput "disk" "Disk"              wordInput_ (Just "MB")     $ jusp pdisk
+    rowChangingInput "time" "Time"              wordInput_ (Just "s")      $ jusp ptime
+    rowChangingInput "ofp"  "Output file paths" textarea_  Nothing         $ linesNotPrism ppaths
+    rowChangingInput "stdo" "Capture stdout"    checkbox_  Nothing         $ jusp pstdout
+    rowChangingInput "deps" "Dependencies"      textarea_  Nothing         $ linesNotPrism pdeps
     formGroup_ . formUnlabelledRow_ $
         button_ [disabled cannotSubmit, onClick $ \_ _ -> submit] "Submit"
     case subSt of
         SubmitFailure err -> p_ . elemText . T.unpack $ showError err
         _                 -> pure ()
   where
-    rowChangingInput :: (FromJSVal t, ToJSON a) => Text -> String -> Text -> Maybe String -> Lens' PartialSpec a -> (t -> Maybe a) -> Element
-    rowChangingInput id_ lbl typ mAddStr l = formRow_ id_' lbl . addon . changingInput id_' typ l
+    rowChangingInput :: (HasValue t) => Text -> String -> Leaf t -> Maybe String -> NotAPrism PartialSpec (Value t) -> Element
+    rowChangingInput id_ lbl typ mAddStr p = formRow_ id_' lbl . addon $ input
       where
         id_' = "rowId" <> id_
         addon ip = case mAddStr of
             Nothing  -> ip
             Just str -> inputGroup_ $ ip <> inputAddon_ (elemText str)
-    changingInput :: (FromJSVal t, ToJSON a) => Text -> Text -> Lens' PartialSpec a -> (t -> Maybe a) -> Element
-    changingInput id_ typ l validate = input_ [htmlId id_, inputType typ, jsonValue (s ^. l), changing l validate]
-    changing :: (FromJSVal t, HasValue u) => ASetter' PartialSpec a -> (t -> Maybe a) -> Prop u
-    changing l validate = onChange $ \evt -> case validate $ newValue evt of
+        input = typ [htmlId id_', value (s `pget` p), changing p]
+    changing :: (HasValue t) => NotAPrism PartialSpec (Value t) -> Prop t
+    changing p = onChange $ \_ val -> case pset p s val of
         Nothing -> []
-        Just v  -> dispatchState . UpdatePSpec $ s & l .~ v
+        Just s' -> dispatchState $ UpdatePSpec s'
     chkName t | T.null t || isJust (Job.mkName t) = Just t
               | otherwise                         = Nothing
     mkSpec = do
@@ -298,8 +309,8 @@ addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizonta
         pure $ Job.mkSpec name cmd res paths _pstdout deps
     submit = traceShow s $ maybe [] (dispatchState . SubmitJob) mkSpec
     cannotSubmit = disableSubmit || subSt == Submitting || isNothing mkSpec
-    interlines = T.intercalate "\n"
-    splitLines = T.splitOn "\n"
+    linesNotPrism :: Lens' s [Text] -> NotAPrism s Text
+    linesNotPrism l = NotAPrism l (T.intercalate "\n") (Just . T.splitOn "\n")
 
 statusRow :: ReactView Status
 statusRow = defineView "status-row" $ \s ->

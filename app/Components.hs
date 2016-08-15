@@ -1,14 +1,16 @@
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Components (
       ReactStore, StoreData (..), SomeStoreAction (..), alterStore, mkStore
     , ReactView, defineView, defineControllerView, viewWithKey
-    , Element, Prop
-    , GenContainer, Input, OtherInput, Link, Label, Button
-    , Clickable, HasValue
+    , Element, Prop, Container, Leaf
+    , GenContainer, OtherInput, Link, Label, Button
+    , Clickable, HasValue (..)
     , reactRender
     , pageContainer_, pageHeader_, section_
     , h1_
@@ -18,7 +20,9 @@ module Components (
     , ul_, li_
     , tabs_, tab_
     , form_, formGroup_, formRow_, formUnlabelledRow_, inputGroup_, inputAddon_
-    , input_, textarea_, onChange, newValue, value, jsonValue, inputType, placeholder
+    , TextInput, input_, textarea_, placeholder
+    , WordInput, wordInput_
+    , Checkbox, checkbox_
     , button_, disabled
     , Flavour (..), alert_
     , elemText
@@ -115,7 +119,9 @@ displayCell = txtStyle "display" "table-cell"
 
 data Button
 data GenContainer
-data Input
+data TextInput
+data WordInput
+data Checkbox
 data OtherInput
 data Label
 data Link
@@ -127,23 +133,36 @@ instance Clickable Link
 onClick :: (Clickable a) => (F.Event -> F.MouseEvent -> F.ViewEventHandler) -> Prop a
 onClick = Prop . F.onClick
 
-class HasValue a
-instance HasValue Input
-instance HasValue OtherInput
+class HasValue a where
+    type Value a :: *
 
-onChange :: (HasValue a) => (F.Event -> F.ViewEventHandler) -> Prop a
-onChange = Prop . F.onChange
+    value :: Value a -> Prop a
+    default value :: (Aeson.ToJSON (Value a)) => Value a -> Prop a
+    value = jsonProp "value"
 
-value :: (HasValue a) => Text -> Prop a
-value = txtProp "value"
+    onChange :: (F.Event -> Value a -> F.ViewEventHandler) -> Prop a
+    default onChange :: (FromJSVal (Value a)) => (F.Event -> Value a -> F.ViewEventHandler) -> Prop a
+    onChange = Prop . F.onChange . conv
+      where
+        conv f evt = f evt $ F.target evt "value"
 
-jsonValue :: (HasValue a, Aeson.ToJSON v) => v -> Prop a
-jsonValue = jsonProp "value"
+instance HasValue TextInput where
+    type Value TextInput = Text
+    value = txtProp "value"
+
+instance HasValue WordInput where
+    type Value WordInput = Word
+
+instance HasValue Checkbox where
+    type Value Checkbox = Bool
+    value = jsonProp "checked"
+    onChange = Prop . F.onChange . conv
+      where
+        conv f evt = f evt $ F.target evt "checked"
 
 $(mkRawElem ''Button "button")
 $(mkRawElem ''GenContainer "table")
-$(mkRawElem ''Input "input")
-$(mkRawElem ''OtherInput "textarea")
+$(mkRawElem ''TextInput "textarea")
 
 $(concat <$> traverse (mkContainer ''GenContainer)
     ["h1", "ul", "li", "section", "form", "tr", "td", "th", "thead", "tbody", "p"])
@@ -206,20 +225,23 @@ button_ = button [className "btn btn-default"]
 disabled :: Bool -> Prop Button
 disabled = jsonProp "disabled"
 
-input_ :: Leaf Input
-input_ ps = input [className "form-control"] ps empty
+formControlInput :: [Prop a] -> Leaf a
+formControlInput ps1 ps2 = present "input" (className "form-control" : ps1) ps2 empty
 
-textarea_ :: Leaf OtherInput
+input_ :: Leaf TextInput
+input_ = formControlInput []
+
+wordInput_ :: Leaf WordInput
+wordInput_ = formControlInput [txtProp "type" "number"]
+
+checkbox_ :: Leaf Checkbox
+checkbox_ = formControlInput [txtProp "type" "checkbox"]
+
+textarea_ :: Leaf TextInput
 textarea_ ps = textarea [className "form-control"] ps empty
 
-inputType :: Text -> Prop Input
-inputType = txtProp "type"
-
-placeholder :: Text -> Prop Input
+placeholder :: Text -> Prop TextInput
 placeholder = txtProp "placeholder"
-
-newValue :: (FromJSVal val) => F.Event -> val
-newValue evt = F.target evt "value"
 
 data Flavour = Success | Info | Warning | Danger deriving (Show, Eq)
 
