@@ -21,6 +21,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad (void)
 import Control.Monad.Trans.Either (EitherT, runEitherT)
 import Data.Bifunctor (bimap)
+import Data.Bool (bool)
 import Data.Function (on)
 import Data.Maybe (fromMaybe, isNothing, isJust, listToMaybe)
 import Data.Metrology.Computing (Byte (Byte), Core (Core), (%>))
@@ -87,7 +88,10 @@ data SubmitStatus = NotSubmitted
                   | SubmitFailure SubmitError
                   deriving (Eq, Generic, NFData)
 
-data DeleteStatus = DeleteStatus Job.Name SubmitStatus
+data DeleteType = Delete | Cancel
+                deriving (Show, Eq, Generic, NFData)
+
+data DeleteStatus = DeleteStatus Job.Name DeleteType SubmitStatus
                   deriving (Eq, Generic, NFData)
 
 data SubmitError = InvalidResponse Text
@@ -109,12 +113,13 @@ data PartialSpec = PartialSpec { _pname   :: Text
 $(makeLenses ''PartialSpec)
 
 getJobs :: EitherT ServantError IO [Job.Status]
+putJobStage :: Job.Name -> Job.Stage -> EitherT ServantError IO ()
 deleteJob :: Job.Name -> EitherT ServantError IO ()
 createJob :: Job.Spec -> EitherT ServantError IO ()
 (     getJobs
  :<|> _
  :<|> _
- :<|> _
+ :<|> putJobStage
  :<|> _
  :<|> _
  :<|> deleteJob
@@ -140,8 +145,8 @@ data Action = RefreshInit
             | UpdatePSpec PartialSpec
             | SubmitJob Job.Spec
             | SubmitReturn (Maybe SubmitError)
-            | DeleteJob Job.Name
-            | DeleteReturn Job.Name (Maybe SubmitError)
+            | DeleteJob Job.Name DeleteType
+            | DeleteReturn Job.Name DeleteType (Maybe SubmitError)
             deriving (Generic, NFData)
 
 instance StoreData State where
@@ -162,11 +167,14 @@ instance StoreData State where
                                                   , pspec = defPartialSpec
                                                   , page = JobList }
     transform (SubmitReturn (Just e))   s = pure s{ submitStatus = SubmitFailure e }
-    transform (DeleteJob n)             s = do
-        _ <- async $ alterStore store . DeleteReturn n =<< justError (deleteJob n)
-        pure s{ deleteStatus = DeleteStatus defName NotSubmitted }
-    transform (DeleteReturn n (Just e)) s = pure s{ deleteStatus = DeleteStatus n $ SubmitFailure e }
-    transform (DeleteReturn n Nothing)  s = pure s{ deleteStatus = DeleteStatus n NotSubmitted}
+    transform (DeleteJob n t)           s = do
+        let action = case t of
+                Delete -> deleteJob n
+                Cancel -> putJobStage n $ Job.Failed Job.UserKilled
+        _ <- async $ alterStore store . DeleteReturn n t =<< justError action
+        pure s{ deleteStatus = defDeleteStatus }
+    transform (DeleteReturn n t (Just e)) s = pure s{ deleteStatus = DeleteStatus n t $ SubmitFailure e }
+    transform (DeleteReturn n t Nothing)  s = pure s{ deleteStatus = DeleteStatus n t NotSubmitted}
 
 -- TODO: handle errors more gracefully
 updateJobs :: IO ()
@@ -176,8 +184,11 @@ updateJobs = void . async $ runEitherT getJobs >>= \r ->
 defName :: Job.Name
 defName = fromMaybe (error "invalid defName") $ Job.mkName "-"
 
+defDeleteStatus :: DeleteStatus
+defDeleteStatus = DeleteStatus defName Delete NotSubmitted
+
 store :: ReactStore State
-store = mkStore $ State JobList Set.empty Nothing defPartialSpec NotSubmitted (DeleteStatus defName NotSubmitted) defListZoom
+store = mkStore $ State JobList Set.empty Nothing defPartialSpec NotSubmitted defDeleteStatus defListZoom
 
 dispatchState :: Action -> [SomeStoreAction]
 dispatchState a = [SomeStoreAction store a]
@@ -188,8 +199,11 @@ app = defineControllerView "eclogues app" store $ \s () ->
         appHeader_
         mapM_ (alert_ Danger . elemText . T.unpack . showError) $ refreshError s
         case deleteStatus s of
-            DeleteStatus n (SubmitFailure e) ->
-              alert_ Danger . elemText . T.unpack $ "Error deleting " <> Job.nameText n <> ": " <> showError e
+            DeleteStatus n t (SubmitFailure e) ->
+              let intro = case t of
+                      Delete -> "Error deleting "
+                      Cancel -> "Error cancelling "
+              in alert_ Danger . elemText . T.unpack $ intro <> Job.nameText n <> ": " <> showError e
             _                                -> pure ()
         links_ $ page s
         section_ [htmlId "main"] $ pageElement_ s
@@ -336,11 +350,14 @@ addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizonta
 
 statusRow :: ReactView Status
 statusRow = defineView "status-row" $ \s ->
-    tr_ $ do
+    let stage      = unStatus s ^. Job.stage
+        deleteType = bool Cancel Delete $ Job.isTerminationStage stage
+        delete     = dispatchState $ DeleteJob (statusKey s) deleteType
+    in tr_ $ do
       td "name"   . elemText $ statusKeyStr s
-      td "stage"  . elemText . Job.majorStage $ unStatus s ^. Job.stage
+      td "stage"  . elemText $ Job.majorStage stage
       td "output" $ a_ [href . jobStdoutUrl $ statusKey s] "stdout"
-      td "delete" $ button_ [onClick $ \_ _ -> dispatchState . DeleteJob $ statusKey s] "Delete"
+      td "delete" . button_ [onClick $ \_ _ -> delete] . elemText $ show deleteType
   where
     td :: String -> Element -> Element
     td k = td_ [reactKey k]
