@@ -310,7 +310,10 @@ addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizonta
     submit = traceShow s $ maybe [] (dispatchState . SubmitJob) mkSpec
     cannotSubmit = disableSubmit || subSt == Submitting || isNothing mkSpec
     linesNotPrism :: Lens' s [Text] -> NotAPrism s Text
-    linesNotPrism l = NotAPrism l (T.intercalate "\n") (Just . T.splitOn "\n")
+    linesNotPrism l = NotAPrism l (T.intercalate "\n") (Just . parse)
+      where
+        parse "" = []
+        parse t  = T.splitOn "\n" t
 
 statusRow :: ReactView Status
 statusRow = defineView "status-row" $ \s ->
