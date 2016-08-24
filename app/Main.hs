@@ -33,18 +33,20 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8')
-import Eclogues.API (API)
+import Eclogues.API (API, JobOutput)
 import qualified Eclogues.Job as Job
 import GHC.Generics (Generic)
 import GHCJS.Marshal (FromJSVal)
 import Lens.Micro (Lens', ASetter', (^.), (.~), (&))
 import Lens.Micro.TH (makeLenses)
 import qualified Network.HTTP.Types.Status as HTTP
-import Path (parseAbsFile)
+import Network.URI (URI (..), URIAuth (..), uriToString)
+import Path (parseAbsFile, mkAbsFile)
 import Servant.API ((:<|>) ((:<|>)))
 import Servant.Client (BaseUrl (..), Scheme (Http), client)
 import qualified Servant.Client as SC
 import Servant.Common.Req (ServantError)
+import Servant.Utils.Links (safeLink)
 
 import Debug.Trace (traceShow)
 
@@ -196,7 +198,7 @@ statusList_ :: Set Status -> ListZoom -> Element
 statusList_ ss lz = do
     pagination_ lz lv
     table_ $ do
-        thead_ . tr_ $ th_ [style $ width "50%"] "Name" <> th_ "Stage"
+        thead_ . tr_ $ th_ [style $ width "50%"] "Name" <> th_ "Stage" <> th_ "Output"
         tbody_ . mapM_ statusRow_ $ take (fromIntegral listMax) (curSpan lv)
   where
     lv = lzoom lz ss
@@ -301,8 +303,10 @@ addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizonta
 
 statusRow :: ReactView Status
 statusRow = defineView "status-row" $ \s ->
-    let name = statusKeyStr s
-    in  tr_ $ td "name" name <> td "stage" (Job.majorStage $ unStatus s ^. Job.stage)
+    tr_ $ do
+      td "name" $ statusKeyStr s
+      td "stage" (Job.majorStage $ unStatus s ^. Job.stage)
+      td_ [reactKey ("output" :: String)] $ a_ [href . jobStdoutUrl $ statusKey s] "stdout"
   where
     td :: String -> String -> Element
     td k = td_ [reactKey k] . elemText
@@ -312,6 +316,15 @@ statusRow_ s = viewWithKey statusRow (statusKeyStr s) s mempty
 
 statusKeyStr :: Status -> String
 statusKeyStr = T.unpack . Job.nameText . statusKey
+
+serverAuth :: URIAuth
+serverAuth = URIAuth "" Awful.hostname $ ':' : show Awful.port
+
+jobStdoutUrl :: Job.Name -> Text
+jobStdoutUrl name = T.pack $ uriToString id outputUri ""
+  where
+    outputUri = outputPath{ uriScheme = "http:", uriAuthority = Just serverAuth, uriPath = '/' : uriPath outputPath }
+    outputPath = safeLink (Proxy :: Proxy API) (Proxy :: Proxy JobOutput) name $(mkAbsFile "/stdout")
 
 -- TODO: What happened to ConnectionError in ghcjs-servant-client?
 convError :: ServantError -> SubmitError

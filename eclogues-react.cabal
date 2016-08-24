@@ -39,6 +39,7 @@ executable eclogues-react
                      , http-types
                      , template-haskell
                      , containers
+                     , network-uri
   default-language:    Haskell2010
   cpp-options:         -DGHCJS_BROWSER
 
