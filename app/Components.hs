@@ -62,8 +62,8 @@ elemText = F.elemText
 htmlId :: Text -> Prop a
 htmlId = txtProp "id"
 
-reactKey :: (Aeson.ToJSON v) => v -> Prop a
-reactKey = jsonProp "key"
+reactKey :: Text -> Prop a
+reactKey = txtProp "key"
 
 className :: Text -> Prop a
 className = txtProp "className"

@@ -310,7 +310,7 @@ addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizonta
     rowChangingInput "ofp"  "Output file paths" textarea_  Nothing         $ linesNotPrism ppaths
     rowChangingInput "stdo" "Capture stdout"    checkbox_  Nothing         $ jusp pstdout
     rowChangingInput "deps" "Dependencies"      textarea_  Nothing         $ linesNotPrism pdeps
-    formGroup_ . formUnlabelledRow_ $
+    formGroup_ [reactKey "submit"] . formUnlabelledRow_ $ do
         button_ [disabled cannotSubmit, onClick $ \_ _ -> submit] "Submit"
     case subSt of
         SubmitFailure err -> p_ . elemText . T.unpack $ showError err
@@ -359,7 +359,7 @@ statusRow = defineView "status-row" $ \s ->
       td "output" $ a_ [href . jobStdoutUrl $ statusKey s] "stdout"
       td "delete" . button_ [onClick $ \_ _ -> delete] . elemText $ show deleteType
   where
-    td :: String -> Element -> Element
+    td :: Text -> Element -> Element
     td k = td_ [reactKey k]
 
 statusRow_ :: Status -> Element
