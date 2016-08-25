@@ -20,6 +20,7 @@ import Control.Concurrent.Async (async)
 import Control.DeepSeq (NFData)
 import Control.Monad (void)
 import Control.Monad.Trans.Either (EitherT, runEitherT)
+import Data.Aeson (decode')
 import Data.Bifunctor (bimap)
 import Data.Bool (bool)
 import Data.Function (on)
@@ -33,8 +34,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8')
-import Eclogues.API (API, JobOutput)
+import Eclogues.API (API, JobError, JobOutput, displayError)
 import qualified Eclogues.Job as Job
 import GHC.Generics (Generic)
 import Lens.Micro (Lens', (^.), (.~), (&), lens)
@@ -96,7 +96,7 @@ data DeleteStatus = DeleteStatus Job.Name DeleteType SubmitStatus
 
 data SubmitError = InvalidResponse Text
                  | ConnectionError Text
-                 | FailureResponse Text
+                 | FailureResponse JobError
                  deriving (Show, Eq, Generic, NFData)
 
 data PartialSpec = PartialSpec { _pname   :: Text
@@ -124,7 +124,7 @@ createJob :: Job.Spec -> EitherT ServantError IO ()
  :<|> _
  :<|> deleteJob
  :<|> createJob
- :<|> _) = client (Proxy :: Proxy API) $ BaseUrl Http Awful.hostname Awful.port
+ :<|> _) = client (Proxy :: Proxy API) . Just $ BaseUrl Http Awful.hostname Awful.port
 
 justError :: EitherT ServantError IO () -> IO (Maybe SubmitError)
 justError = fmap (either (Just . convError) (const Nothing)) . runEitherT
@@ -313,7 +313,7 @@ addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizonta
     formGroup_ [reactKey "submit"] . formUnlabelledRow_ $ do
         button_ [disabled cannotSubmit, onClick $ \_ _ -> submit] "Submit"
     case subSt of
-        SubmitFailure err -> p_ . elemText . T.unpack $ showError err
+        SubmitFailure err -> formGroup_ [reactKey "submitError"] . formUnlabelledRow_ . alert_ Danger . elemText . T.unpack $ showError err
         _                 -> pure ()
   where
     rowChangingInput :: (HasValue t) => Text -> String -> Leaf t -> Maybe String -> NotAPrism PartialSpec (Value t) -> Element
@@ -379,10 +379,10 @@ jobStdoutUrl name = T.pack $ uriToString id outputUri ""
 
 -- TODO: What happened to ConnectionError in ghcjs-servant-client?
 convError :: ServantError -> SubmitError
-convError (SC.FailureResponse (HTTP.Status code bmsg) _ _)  -- TODO: decode Eclogues error
-    | code == 0                     = ConnectionError "Error connecting to server"
-    | Right msg <- decodeUtf8' bmsg = FailureResponse msg
-    | otherwise                     = InvalidResponse "Could not decode server response"
+convError (SC.FailureResponse (HTTP.Status code _) _ body)
+    | code == 0              = ConnectionError "Error connecting to server"
+    | Just e <- decode' body = FailureResponse e
+    | otherwise              = InvalidResponse "Could not decode server error response"
 convError (SC.DecodeFailure err _ _)
     = InvalidResponse $ T.pack err
 convError (SC.UnsupportedContentType _ _)
@@ -392,7 +392,7 @@ convError (SC.InvalidContentTypeHeader _ _)
 
 showError :: SubmitError -> Text
 showError (InvalidResponse msg) = msg
-showError (FailureResponse msg) = msg
+showError (FailureResponse e)   = displayError e
 showError (ConnectionError msg) = msg
 
 main :: IO ()

@@ -15,11 +15,11 @@ packages:
 - '.'
 - location:
     git: https://github.com/rimmington/ghcjs-servant-client
-    commit: 4969fc65974743cef5c4d9bafe4e5c6cd6e3245c
+    commit: 6de1dc0a3cb94faccbd8e7b8291ec33679d841e7
   extra-dep: true
 - location:
     git: https://github.com/rimmington/eclogues
-    commit: 07c1444c3f547b2f42d7b6e325178dce2a6908bf
+    commit: 6342dae224d209ae3a8e0ef4b126c3f20abd499d
   extra-dep: true
   subdirs:
   - eclogues
