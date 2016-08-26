@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -64,50 +65,50 @@ instance Eq Status where
 instance Ord Status where
     compare = comparing statusKey
 
-data State = State { page         :: Page
-                   , statuses     :: Set Status
-                   , refreshError :: Maybe SubmitError
-                   , pspec        :: PartialSpec
-                   , submitStatus :: SubmitStatus
-                   , deleteStatus :: DeleteStatus
-                   , listZoom     :: ListZoom }
+data State = State { page         :: !Page
+                   , statuses     :: !(Set Status)
+                   , refreshError :: !(Maybe SubmitError)
+                   , pspec        :: !PartialSpec
+                   , submitStatus :: !SubmitStatus
+                   , deleteStatus :: !DeleteStatus
+                   , listZoom     :: !ListZoom }
 
 data Page = JobList
           | AddJob
           deriving (Eq, Generic, NFData)
 
-data ListZoom = ListZoom { filterKey :: Maybe StatusKey
-                         , topKey    :: Maybe StatusKey }
+data ListZoom = ListZoom { filterKey :: !(Maybe StatusKey)
+                         , topKey    :: !(Maybe StatusKey) }
               deriving (Generic, NFData)
 
-data ListView = ListView { prevSpan :: [Status]
-                         , curSpan  :: [Status] }
+data ListView = ListView { prevSpan :: ![Status]
+                         , curSpan  :: ![Status] }
 
 data SubmitStatus = NotSubmitted
                   | Submitting
-                  | SubmitFailure SubmitError
+                  | SubmitFailure !SubmitError
                   deriving (Eq, Generic, NFData)
 
 data DeleteType = Delete | Cancel
                 deriving (Show, Eq, Generic, NFData)
 
-data DeleteStatus = DeleteStatus Job.Name DeleteType SubmitStatus
+data DeleteStatus = DeleteStatus !Job.Name !DeleteType !SubmitStatus
                   deriving (Eq, Generic, NFData)
 
-data SubmitError = InvalidResponse Text
-                 | ConnectionError Text
-                 | FailureResponse JobError
+data SubmitError = InvalidResponse !Text
+                 | ConnectionError !Text
+                 | FailureResponse !JobError
                  deriving (Show, Eq, Generic, NFData)
 
-data PartialSpec = PartialSpec { _pname   :: Text
-                               , _pcmd    :: Text
-                               , _pram    :: Word
-                               , _pdisk   :: Word
-                               , _pcpu    :: Word
-                               , _ptime   :: Word
-                               , _ppaths  :: [Text]
-                               , _pstdout :: Bool
-                               , _pdeps   :: [Text] }
+data PartialSpec = PartialSpec { _pname   :: !Text
+                               , _pcmd    :: !Text
+                               , _pram    :: !Word
+                               , _pdisk   :: !Word
+                               , _pcpu    :: !Word
+                               , _ptime   :: !Word
+                               , _ppaths  :: ![Text]
+                               , _pstdout :: !Bool
+                               , _pdeps   :: ![Text] }
                  deriving (Show, Generic, NFData)
 
 $(makeLenses ''PartialSpec)
@@ -299,54 +300,60 @@ jusp :: Lens' a s -> NotAPrism a s
 jusp l = NotAPrism l id Just
 {-# INLINE jusp #-}
 
-addJob_ :: Bool -> SubmitStatus -> PartialSpec -> Element
-addJob_ disableSubmit subSt s@PartialSpec{..} = form_ [className "form-horizontal", style $ marginTop "3ex"] $ do
-    rowChangingInput "name" "Name"              input_     Nothing         $ NotAPrism pname id chkName
-    rowChangingInput "cmd"  "Command"           input_     Nothing         $ jusp pcmd
-    rowChangingInput "cpu"  "CPU"               wordInput_ (Just "dcores") $ jusp pcpu
-    rowChangingInput "ram"  "RAM"               wordInput_ (Just "MB")     $ jusp pram
-    rowChangingInput "disk" "Disk"              wordInput_ (Just "MB")     $ jusp pdisk
-    rowChangingInput "time" "Time"              wordInput_ (Just "s")      $ jusp ptime
-    rowChangingInput "ofp"  "Output file paths" textarea_  Nothing         $ linesNotPrism ppaths
-    rowChangingInput "stdo" "Capture stdout"    checkbox_  Nothing         $ jusp pstdout
-    rowChangingInput "deps" "Dependencies"      textarea_  Nothing         $ linesNotPrism pdeps
-    formGroup_ [reactKey "submit"] . formUnlabelledRow_ $ do
-        button_ [disabled cannotSubmit, onClick $ \_ _ -> submit] "Submit"
-    case subSt of
-        SubmitFailure err -> formGroup_ [reactKey "submitError"] . formUnlabelledRow_ . alert_ Danger . elemText . T.unpack $ showError err
-        _                 -> pure ()
+addJob :: ReactView (Bool, SubmitStatus, PartialSpec)
+addJob = defineView "addJob" go
   where
-    rowChangingInput :: (HasValue t) => Text -> String -> Leaf t -> Maybe String -> NotAPrism PartialSpec (Value t) -> Element
-    rowChangingInput id_ lbl typ mAddStr p = formRow_ id_' lbl . addon $ input
+    go (disableSubmit, subSt, s@PartialSpec{..}) = form_ [className "form-horizontal", style $ marginTop "3ex"] $ do
+        rowChangingInput "name" "Name"              input_     Nothing         $ NotAPrism pname id chkName
+        rowChangingInput "cmd"  "Command"           input_     Nothing         $ jusp pcmd
+        rowChangingInput "cpu"  "CPU"               wordInput_ (Just "dcores") $ jusp pcpu
+        rowChangingInput "ram"  "RAM"               wordInput_ (Just "MB")     $ jusp pram
+        rowChangingInput "disk" "Disk"              wordInput_ (Just "MB")     $ jusp pdisk
+        rowChangingInput "time" "Time"              wordInput_ (Just "s")      $ jusp ptime
+        rowChangingInput "ofp"  "Output file paths" textarea_  Nothing         $ linesNotPrism ppaths
+        rowChangingInput "stdo" "Capture stdout"    checkbox_  Nothing         $ jusp pstdout
+        rowChangingInput "deps" "Dependencies"      textarea_  Nothing         $ linesNotPrism pdeps
+        formGroup_ [reactKey "submit"] . formUnlabelledRow_ $ do
+            button_ [disabled cannotSubmit, onClick $ \_ _ -> submit] "Submit"
+        case subSt of
+            SubmitFailure err -> formGroup_ [reactKey "submitError"] . formUnlabelledRow_ . alert_ Danger . elemText . T.unpack $ showError err
+            _                 -> pure ()
       where
-        id_' = "rowId" <> id_
-        addon ip = case mAddStr of
-            Nothing  -> ip
-            Just str -> inputGroup_ $ ip <> inputAddon_ (elemText str)
-        input = typ [htmlId id_', value (s `pget` p), changing p]
-    changing :: (HasValue t) => NotAPrism PartialSpec (Value t) -> Prop t
-    changing p = onChange $ \_ val -> case pset p s val of
-        Nothing -> []
-        Just s' -> dispatchState $ UpdatePSpec s'
-    chkName t | T.null t || isJust (Job.mkName t) = Just t
-              | otherwise                         = Nothing
-    mkSpec = do
-        name <- Job.mkName _pname
-        cmd <- if T.null _pcmd then Nothing else Just _pcmd
-        res <- Job.mkResources (fromIntegral _pram      %> mega Byte)
-                               (fromIntegral _pdisk     %> mega Byte)
-                               (fromIntegral _pcpu * 10 %> centi Core)
-                               (fromIntegral _ptime     %> Second)
-        paths <- traverse (fmap Job.OutputPath . parseAbsFile . T.unpack) _ppaths
-        deps <- traverse Job.mkName _pdeps
-        pure $ Job.mkSpec name cmd res paths _pstdout deps
-    submit = traceShow s $ maybe [] (dispatchState . SubmitJob) mkSpec
-    cannotSubmit = disableSubmit || subSt == Submitting || isNothing mkSpec
-    linesNotPrism :: Lens' s [Text] -> NotAPrism s Text
-    linesNotPrism l = NotAPrism l (T.intercalate "\n") (Just . parse)
-      where
-        parse "" = []
-        parse t  = T.splitOn "\n" t
+        rowChangingInput :: (HasValue t) => Text -> String -> Leaf t -> Maybe String -> NotAPrism PartialSpec (Value t) -> Element
+        rowChangingInput id_ lbl typ mAddStr p = formRow_ id_' lbl . addon $ input
+          where
+            id_' = "rowId" <> id_
+            addon ip = case mAddStr of
+                Nothing  -> ip
+                Just str -> inputGroup_ $ ip <> inputAddon_ (elemText str)
+            input = typ [htmlId id_', value (s `pget` p), changing p]
+        changing :: (HasValue t) => NotAPrism PartialSpec (Value t) -> Prop t
+        changing p = onChange $ \_ val -> case pset p s val of
+            Nothing -> []
+            Just s' -> dispatchState $ UpdatePSpec s'
+        chkName t | T.null t || isJust (Job.mkName t) = Just t
+                  | otherwise                         = Nothing
+        mkSpec = do
+            name <- Job.mkName _pname
+            cmd <- if T.null _pcmd then Nothing else Just _pcmd
+            res <- Job.mkResources (fromIntegral _pram      %> mega Byte)
+                                   (fromIntegral _pdisk     %> mega Byte)
+                                   (fromIntegral _pcpu * 10 %> centi Core)
+                                   (fromIntegral _ptime     %> Second)
+            paths <- traverse (fmap Job.OutputPath . parseAbsFile . T.unpack) _ppaths
+            deps <- traverse Job.mkName _pdeps
+            pure $ Job.mkSpec name cmd res paths _pstdout deps
+        submit = traceShow s $ maybe [] (dispatchState . SubmitJob) mkSpec
+        cannotSubmit = disableSubmit || subSt == Submitting || isNothing mkSpec
+        linesNotPrism :: Lens' s [Text] -> NotAPrism s Text
+        linesNotPrism l = NotAPrism l (T.intercalate "\n") (Just . parse)
+          where
+            parse "" = []
+            parse t  = T.splitOn "\n" t
+
+addJob_ :: Bool -> SubmitStatus -> PartialSpec -> Element
+addJob_ !d !st !s = viewWithKey addJob ("addJob" :: String) (d, st, s) mempty
+-- NOTE: react-flux only does strict comparisons for 3-tuples and smaller
 
 statusRow :: ReactView Status
 statusRow = defineView "status-row" $ \s ->
@@ -363,7 +370,7 @@ statusRow = defineView "status-row" $ \s ->
     td k = td_ [reactKey k]
 
 statusRow_ :: Status -> Element
-statusRow_ s = viewWithKey statusRow (statusKeyStr s) s mempty
+statusRow_ !s = viewWithKey statusRow (statusKeyStr s) s mempty
 
 statusKeyStr :: Status -> String
 statusKeyStr = T.unpack . Job.nameText . statusKey
