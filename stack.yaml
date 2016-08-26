@@ -42,7 +42,7 @@ packages:
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- react-flux-1.0.2
+- react-flux-1.2.1
 - units-attoparsec-1.0
 - units-defs-2.0.0.1
 - units-parser-0.1.0.0

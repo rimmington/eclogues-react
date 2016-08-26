@@ -17,10 +17,12 @@ type RawElem   a = forall i r. (Construct a i r) => [Prop a] -> i -> r
 
 newtype Prop a = Prop { _unProp :: F.PropertyOrHandler F.ViewEventHandler }
 
+type JSString = F.JSString
+
 class (i ~ PropOrElement a r, r ~ ElementOrFun a i) => Construct a i r where
     type PropOrElement a r :: *
     type ElementOrFun  a i :: *
-    present :: String -> [Prop a] -> i -> r
+    present :: JSString -> [Prop a] -> i -> r
 
 instance (x ~ (), a ~ a') => Construct a [Prop a'] (ElementM x -> ElementM x) where
     type PropOrElement a (ElementM x -> ElementM x) = [Prop a]

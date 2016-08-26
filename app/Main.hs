@@ -198,13 +198,13 @@ app :: ReactView ()
 app = defineControllerView "eclogues app" store $ \s () ->
     pageContainer_ $ do
         appHeader_
-        mapM_ (alert_ Danger . elemText . T.unpack . showError) $ refreshError s
+        mapM_ (alert_ Danger . elemText . showError) $ refreshError s
         case deleteStatus s of
             DeleteStatus n t (SubmitFailure e) ->
               let intro = case t of
                       Delete -> "Error deleting "
                       Cancel -> "Error cancelling "
-              in alert_ Danger . elemText . T.unpack $ intro <> Job.nameText n <> ": " <> showError e
+              in alert_ Danger . elemText $ intro <> Job.nameText n <> ": " <> showError e
             _                                -> pure ()
         links_ $ page s
         section_ [htmlId "main"] $ pageElement_ s
@@ -222,8 +222,8 @@ links_ cur = tabs_ $ do
     tab "Job List" JobList
     tab "Add Job"  AddJob
   where
-    tab :: String -> Page -> Element
-    tab lbl dest = tab_ (dest == cur) . a_ [href "#", goto dest] $ elemText lbl
+    tab :: JSString -> Page -> Element
+    tab lbl dest = tab_ (dest == cur) . a_ [href "#", goto dest] $ elemStr lbl
     goto :: Page -> Prop Link
     goto dest = onClick $ \_ _ -> dispatchState $ SwitchPage dest
 
@@ -303,7 +303,7 @@ jusp l = NotAPrism l id Just
 addJob :: ReactView (Bool, SubmitStatus, PartialSpec)
 addJob = defineView "addJob" go
   where
-    go (disableSubmit, subSt, s@PartialSpec{..}) = form_ [className "form-horizontal", style $ marginTop "3ex"] $ do
+    go (disableSubmit, subSt, s@PartialSpec{..}) = traceShow ("rendering" :: String) $ form_ [className "form-horizontal", style $ marginTop "3ex"] $ do
         rowChangingInput "name" "Name"              input_     Nothing         $ NotAPrism pname id chkName
         rowChangingInput "cmd"  "Command"           input_     Nothing         $ jusp pcmd
         rowChangingInput "cpu"  "CPU"               wordInput_ (Just "dcores") $ jusp pcpu
@@ -316,16 +316,16 @@ addJob = defineView "addJob" go
         formGroup_ [reactKey "submit"] . formUnlabelledRow_ $ do
             button_ [disabled cannotSubmit, onClick $ \_ _ -> submit] "Submit"
         case subSt of
-            SubmitFailure err -> formGroup_ [reactKey "submitError"] . formUnlabelledRow_ . alert_ Danger . elemText . T.unpack $ showError err
+            SubmitFailure err -> formGroup_ [reactKey "submitError"] . formUnlabelledRow_ . alert_ Danger . elemText $ showError err
             _                 -> pure ()
       where
-        rowChangingInput :: (HasValue t) => Text -> String -> Leaf t -> Maybe String -> NotAPrism PartialSpec (Value t) -> Element
+        rowChangingInput :: (HasValue t) => JSString -> JSString -> Leaf t -> Maybe JSString -> NotAPrism PartialSpec (Value t) -> Element
         rowChangingInput id_ lbl typ mAddStr p = formRow_ id_' lbl . addon $ input
           where
             id_' = "rowId" <> id_
             addon ip = case mAddStr of
                 Nothing  -> ip
-                Just str -> inputGroup_ $ ip <> inputAddon_ (elemText str)
+                Just str -> inputGroup_ $ ip <> inputAddon_ (elemStr str)
             input = typ [htmlId id_', value (s `pget` p), changing p]
         changing :: (HasValue t) => NotAPrism PartialSpec (Value t) -> Prop t
         changing p = onChange $ \_ val -> case pset p s val of
@@ -352,7 +352,7 @@ addJob = defineView "addJob" go
             parse t  = T.splitOn "\n" t
 
 addJob_ :: Bool -> SubmitStatus -> PartialSpec -> Element
-addJob_ !d !st !s = viewWithKey addJob ("addJob" :: String) (d, st, s) mempty
+addJob_ !d !st !s = viewWithKey addJob "addJob" (d, st, s)
 -- NOTE: react-flux only does strict comparisons for 3-tuples and smaller
 
 statusRow :: ReactView Status
@@ -361,25 +361,25 @@ statusRow = defineView "status-row" $ \s ->
         deleteType = bool Cancel Delete $ Job.isTerminationStage stage
         delete     = dispatchState $ DeleteJob (statusKey s) deleteType
     in tr_ $ do
-      td "name"   . elemText $ statusKeyStr s
-      td "stage"  . elemText $ Job.majorStage stage
+      td "name"   . elemStr $ statusKeyStr s
+      td "stage"  . elemStr . jsPack $ Job.majorStage stage
       td "output" $ a_ [href . jobStdoutUrl $ statusKey s] "stdout"
-      td "delete" . button_ [onClick $ \_ _ -> delete] . elemText $ show deleteType
+      td "delete" . button_ [onClick $ \_ _ -> delete] . elemStr . jsPack $ show deleteType
   where
-    td :: Text -> Element -> Element
+    td :: JSString -> Element -> Element
     td k = td_ [reactKey k]
 
 statusRow_ :: Status -> Element
-statusRow_ !s = viewWithKey statusRow (statusKeyStr s) s mempty
+statusRow_ !s = viewWithKey statusRow (statusKeyStr s) s
 
-statusKeyStr :: Status -> String
-statusKeyStr = T.unpack . Job.nameText . statusKey
+statusKeyStr :: Status -> JSString
+statusKeyStr = jsUnpack . Job.nameText . statusKey
 
 serverAuth :: URIAuth
 serverAuth = URIAuth "" Awful.hostname $ ':' : show Awful.port
 
-jobStdoutUrl :: Job.Name -> Text
-jobStdoutUrl name = T.pack $ uriToString id outputUri ""
+jobStdoutUrl :: Job.Name -> JSString
+jobStdoutUrl name = jsPack $ uriToString id outputUri ""
   where
     outputUri = outputPath{ uriScheme = "http:", uriAuthority = Just serverAuth, uriPath = '/' : uriPath outputPath }
     outputPath = safeLink (Proxy :: Proxy API) (Proxy :: Proxy JobOutput) name $(mkAbsFile "/stdout")

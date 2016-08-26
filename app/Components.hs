@@ -25,8 +25,8 @@ module Components (
     , Checkbox, checkbox_
     , button_, disabled
     , Flavour (..), alert_
-    , elemText
-    , htmlId, className, classNames, reactKey
+    , JSString, jsPack, jsUnpack, elemStr, elemText
+    , htmlId, className, reactKey
     , style, width, displayTable, displayCell
     , marginTop, marginLow, marginLeft, marginRight, marginX, marginY
     , ariaHidden
@@ -35,49 +35,72 @@ module Components (
 import Components.TH (mkContainer, mkRawElem)
 import Components.Types
 
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
+import Data.Bool (bool)
 import Data.Monoid ((<>))
+import qualified Data.JSString as JSS
+import Data.JSString.Text (textToJSString)
 import Data.Text (Text)
-import GHCJS.Marshal (FromJSVal)
+import Data.Typeable (Typeable)
+import GHCJS.Marshal (FromJSVal, ToJSVal (toJSVal))
+import GHCJS.Marshal.Pure (pToJSVal)
+import qualified JavaScript.Object as O
+import qualified JavaScript.Object.Internal as O
 import React.Flux (
-      ReactView, defineView, defineControllerView, viewWithKey
+      ReactView, defineView, defineControllerView
     , ReactStore, StoreData (..), SomeStoreAction (..), alterStore, mkStore
-    , ($=), (@=)
+    , ($=), (&=)
     , reactRender)
 import qualified React.Flux as F
 
-txtProp :: Text -> Text -> Prop a
-txtProp n = Prop . (n $=)
+strProp :: JSString -> JSString -> Prop a
+strProp n = Prop . (n $=)
+{-# INLINE strProp #-}
 
-jsonProp :: (Aeson.ToJSON v) => Text -> v -> Prop a
-jsonProp n = Prop . (n @=)
+jsProp :: (ToJSVal v) => JSString -> v -> Prop a
+jsProp n = Prop . (n &=)
+{-# INLINE jsProp #-}
+
+-- NOTE: These aren't inverses of each other. This is intentional, if cheeky.
+jsUnpack :: Text -> JSString
+jsUnpack = textToJSString
+
+jsPack :: String -> JSString
+jsPack = JSS.pack
+
+viewWithKey :: (Typeable a) => ReactView a -> JSString -> a -> Element
+viewWithKey v k ps = F.viewWithSKey v k ps mempty
 
 empty :: Element
 empty = pure ()
 
-elemText :: String -> Element
+elemStr :: JSString -> Element
+elemStr = F.elemJSString
+
+elemText :: Text -> Element
 elemText = F.elemText
 
-htmlId :: Text -> Prop a
-htmlId = txtProp "id"
+htmlId :: JSString -> Prop a
+htmlId = strProp "id"
 
-reactKey :: Text -> Prop a
-reactKey = txtProp "key"
+reactKey :: JSString -> Prop a
+reactKey = strProp "key"
 
-className :: Text -> Prop a
-className = txtProp "className"
+className :: JSString -> Prop a
+className = strProp "className"
 
-classNames :: [(Text, Bool)] -> Prop a
-classNames = Prop . F.classNames
-
-htmlRole :: Text -> Prop a
-htmlRole = txtProp "role"
+htmlRole :: JSString -> Prop a
+htmlRole = strProp "role"
 
 ariaHidden :: Bool -> Prop a
-ariaHidden = jsonProp "aria-hidden"
+ariaHidden = jsProp "aria-hidden"
 
-newtype Style = Style { _unStyle :: [Aeson.Pair] -> [Aeson.Pair] }
+newtype Style = Style { _unStyle :: [(JSString, JSString)] -> [(JSString, JSString)] }
+
+instance ToJSVal Style where
+    toJSVal (Style ssf) = do
+        o@(O.Object ov) <- O.create
+        mapM_ (\(n, v) -> O.unsafeSetProp n (pToJSVal v) o) $ ssf []
+        pure ov
 
 instance Monoid Style where
     mempty = Style id
@@ -85,30 +108,30 @@ instance Monoid Style where
     {-# INLINE mappend #-}
 
 style :: Style -> Prop a
-style (Style psf) = Prop $ "style" @= Aeson.object (psf [])
+style s = Prop $ "style" &= s
 
-txtStyle :: Text -> Text -> Style
-txtStyle k v = Style ((k, Aeson.String v) :)
+txtStyle :: JSString -> JSString -> Style
+txtStyle k v = Style ((k, v) :)
 
-marginY :: Text -> Style
+marginY :: JSString -> Style
 marginY v = marginTop v <> marginLow v
 
-marginTop :: Text -> Style
+marginTop :: JSString -> Style
 marginTop = txtStyle "marginTop"
 
-marginLow :: Text -> Style
+marginLow :: JSString -> Style
 marginLow = txtStyle "marginBottom"
 
-marginX :: Text -> Style
+marginX :: JSString -> Style
 marginX v = marginLeft v <> marginRight v
 
-marginLeft :: Text -> Style
+marginLeft :: JSString -> Style
 marginLeft = txtStyle "marginLeft"
 
-marginRight :: Text -> Style
+marginRight :: JSString -> Style
 marginRight = txtStyle "marginRight"
 
-width :: Text -> Style
+width :: JSString -> Style
 width = txtStyle "width"
 
 displayTable :: Style
@@ -137,8 +160,8 @@ class HasValue a where
     type Value a :: *
 
     value :: Value a -> Prop a
-    default value :: (Aeson.ToJSON (Value a)) => Value a -> Prop a
-    value = jsonProp "value"
+    default value :: (ToJSVal (Value a)) => Value a -> Prop a
+    value = jsProp "value"
 
     onChange :: (F.Event -> Value a -> F.ViewEventHandler) -> Prop a
     default onChange :: (FromJSVal (Value a)) => (F.Event -> Value a -> F.ViewEventHandler) -> Prop a
@@ -148,14 +171,13 @@ class HasValue a where
 
 instance HasValue TextInput where
     type Value TextInput = Text
-    value = txtProp "value"
 
 instance HasValue WordInput where
     type Value WordInput = Word
 
 instance HasValue Checkbox where
     type Value Checkbox = Bool
-    value = jsonProp "checked"
+    value = jsProp "checked"
     onChange = Prop . F.onChange . conv
       where
         conv f evt = f evt $ F.target evt "checked"
@@ -194,21 +216,21 @@ tabs_ :: Element -> Element
 tabs_ = F.nav_ . F.ul_ ["className" $= "nav nav-tabs"]
 
 tab_ :: Bool -> Element -> Element
-tab_ active = li_ [htmlRole "presentation", classNames [("active", active)]]
+tab_ active = li_ $ htmlRole "presentation" : bool [] [className "active"] active
 
-formRow_ :: Text -> String -> Element -> Element
+formRow_ :: JSString -> JSString -> Element -> Element
 formRow_ id_ lbl = formGroup_ [reactKey id_] . (lblElem <>) . div_ [className "col-md-10"]
   where
-    lblElem = label_ [for id_, className "col-md-2 control-label"] $ elemText lbl
+    lblElem = label_ [for id_, className "col-md-2 control-label"] $ elemStr lbl
 
 formUnlabelledRow_ :: Element -> Element
 formUnlabelledRow_ = div_ [className "col-md-offset-2 col-md-10"]
 
-href :: Text -> Prop Link
-href = txtProp "href"
+href :: JSString -> Prop Link
+href = strProp "href"
 
-for :: Text -> Prop Label
-for = txtProp "htmlFor"
+for :: JSString -> Prop Label
+for = strProp "htmlFor"
 
 formGroup_ :: Container GenContainer
 formGroup_ = htmlDiv [className "form-group"]
@@ -223,7 +245,7 @@ button_ :: Container Button
 button_ = button [className "btn btn-default"]
 
 disabled :: Bool -> Prop Button
-disabled = jsonProp "disabled"
+disabled = jsProp "disabled"
 
 formControlInput :: [Prop a] -> Leaf a
 formControlInput ps1 ps2 = present "input" (className "form-control" : ps1) ps2 empty
@@ -232,20 +254,20 @@ input_ :: Leaf TextInput
 input_ = formControlInput []
 
 wordInput_ :: Leaf WordInput
-wordInput_ = formControlInput [txtProp "type" "number"]
+wordInput_ = formControlInput [strProp "type" "number"]
 
 checkbox_ :: Leaf Checkbox
-checkbox_ = formControlInput [txtProp "type" "checkbox"]
+checkbox_ = formControlInput [strProp "type" "checkbox"]
 
 textarea_ :: Leaf TextInput
 textarea_ ps = textarea [className "form-control"] ps empty
 
-placeholder :: Text -> Prop TextInput
-placeholder = txtProp "placeholder"
+placeholder :: JSString -> Prop TextInput
+placeholder = strProp "placeholder"
 
 data Flavour = Success | Info | Warning | Danger deriving (Show, Eq)
 
-flavourSuffix :: Flavour -> Text
+flavourSuffix :: Flavour -> JSString
 flavourSuffix Success = "success"
 flavourSuffix Info    = "info"
 flavourSuffix Warning = "warning"
