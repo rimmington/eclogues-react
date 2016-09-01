@@ -38,7 +38,7 @@ main = shakeArgs shakeOptions{shakeFiles="_build"} $ do
 
     "_build/all.js" %> \out -> do
         need =<< getDirectoryFiles "" ["app//*.hs", "*.cabal"]
-        unit $ cmd "stack build"
+        unit $ cmd "stack test"
         dir <- installRoot $ InstallRoot ()
         let fp = dir </> "bin/eclogues-react.jsexe/all.js"
         wrapJSFile ["React", "ReactDOM"] fp out
