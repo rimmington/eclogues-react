@@ -311,7 +311,7 @@ addJob = defineView "addJob" go
         rowChangingInput "ofp"  "Output file paths" textarea_  Nothing         $ linesNotPrism ppaths
         rowChangingInput "stdo" "Capture stdout"    checkbox_  Nothing         $ jusp pstdout
         rowChangingInput "deps" "Dependencies"      textarea_  Nothing         $ linesNotPrism pdeps
-        formGroup_ [reactKey "submit"] . formUnlabelledRow_ $ do
+        formGroup_ [reactKey "submit"] . formUnlabelledRow_ $
             button_ [disabled cannotSubmit, onClick $ \_ _ -> submit] "Submit"
         case subSt of
             SubmitFailure err -> formGroup_ [reactKey "submitError"] . formUnlabelledRow_ . alert_ Danger . elemText $ showError err
