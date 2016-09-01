@@ -49,8 +49,6 @@ import qualified Servant.Client as SC
 import Servant.Common.Req (ServantError)
 import Servant.Utils.Links (safeLink)
 
-import Debug.Trace (traceShow)
-
 newtype Status = Status { unStatus :: Job.Status }
                deriving (Show, Generic, NFData)
 
@@ -303,7 +301,7 @@ jusp l = NotAPrism l id Just
 addJob :: ReactView (Bool, SubmitStatus, PartialSpec)
 addJob = defineView "addJob" go
   where
-    go (disableSubmit, subSt, s@PartialSpec{..}) = traceShow ("rendering" :: String) $ form_ [className "form-horizontal", style $ marginTop "3ex"] $ do
+    go (disableSubmit, subSt, s@PartialSpec{..}) = form_ [className "form-horizontal", style $ marginTop "3ex"] $ do
         rowChangingInput "name" "Name"              input_     Nothing         $ NotAPrism pname id chkName
         rowChangingInput "cmd"  "Command"           input_     Nothing         $ jusp pcmd
         rowChangingInput "cpu"  "CPU"               wordInput_ (Just "dcores") $ jusp pcpu
@@ -343,7 +341,7 @@ addJob = defineView "addJob" go
             paths <- traverse (fmap Job.OutputPath . parseAbsFile . T.unpack) _ppaths
             deps <- traverse Job.mkName _pdeps
             pure $ Job.mkSpec name cmd res paths _pstdout deps
-        submit = traceShow s $ maybe [] (dispatchState . SubmitJob) mkSpec
+        submit = maybe [] (dispatchState . SubmitJob) mkSpec
         cannotSubmit = disableSubmit || subSt == Submitting || isNothing mkSpec
         linesNotPrism :: Lens' s [Text] -> NotAPrism s Text
         linesNotPrism l = NotAPrism l (T.intercalate "\n") (Just . parse)
