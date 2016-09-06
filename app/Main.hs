@@ -135,7 +135,7 @@ defListZoom :: ListZoom
 defListZoom = ListZoom Nothing Nothing
 
 listMax :: Word
-listMax = 2
+listMax = 10
 
 data Action = RefreshInit
             | RefreshReturn (Either SubmitError (Set Status))
