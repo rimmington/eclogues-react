@@ -360,7 +360,16 @@ statusRow = defineView "status-row" $ \s ->
         delete     = dispatchState $ DeleteJob (statusKey s) deleteType
     in tr_ $ do
       td "name"   . elemStr $ statusKeyStr s
-      td "stage"  . elemStr . jsPack $ Job.majorStage stage
+      td "stage"  $ do
+        elemStr . jsPack $ Job.majorStage stage
+        case unStatus s ^. Job.satis of
+            Job.Unsatisfiable r -> iconMeaning_ IconAlert "Warning" [style $ marginLeft "1em" <> textColour "orange", title msg]
+              where
+                msg = case r of
+                    Job.DependenciesUnsatisfiable ns ->
+                        jsUnpack $ "Dependencies " <> T.intercalate ", " (Job.nameText <$> ns) <> " are unsatisfiable"
+                    Job.InsufficientResources -> "Insufficient resources to run job"
+            _                       -> mempty
       td "output" $ a_ [href . jobStdoutUrl $ statusKey s] "stdout"
       td "delete" . button_ [onClick $ \_ _ -> delete] . elemStr . jsPack $ show deleteType
   where

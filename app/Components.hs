@@ -28,8 +28,9 @@ module Components (
     , button_, disabled
     , Flavour (..), alert_
     , JSString, jsPack, jsUnpack, elemStr, elemText
-    , htmlId, className, reactKey
-    , style, width, displayTable, displayCell
+    , IconType (..), iconMeaning_
+    , htmlId, className, reactKey, title
+    , style, width, displayTable, displayCell, textColour
     , marginTop, marginLow, marginLeft, marginRight, marginX, marginY
     , ariaHidden
     ) where
@@ -93,6 +94,9 @@ htmlRole = strProp "role"
 ariaHidden :: Bool -> Prop a
 ariaHidden = jsProp "aria-hidden"
 
+title :: JSString -> Prop a
+title = strProp "title"
+
 newtype Style = Style { _unStyle :: [(JSString, JSString)] -> [(JSString, JSString)] }
 
 instance ToJSVal Style where
@@ -139,6 +143,9 @@ displayTable = txtStyle "display" "table"
 displayCell :: Style
 displayCell = txtStyle "display" "table-cell"
 
+textColour :: JSString -> Style
+textColour = txtStyle "color"
+
 data Button
 data GenContainer
 data TextInput
@@ -147,6 +154,7 @@ data Checkbox
 data OtherInput
 data Label
 data Link
+data Decorative
 
 class Clickable a
 instance Clickable Button
@@ -207,6 +215,16 @@ div_ = htmlDiv []
 
 span_ :: Container GenContainer
 span_ = htmlSpan []
+
+data IconType = IconAlert
+
+iconClass :: IconType -> JSString
+iconClass IconAlert = "glyphicon-alert"
+
+iconMeaning_ :: IconType -> JSString -> Leaf Decorative
+iconMeaning_ typ msg = leafy $ \(ps :: [Prop Decorative]) ->
+    present "span" [] ps $ span_ [className $ "glyphicon " <> iconClass typ, ariaHidden True] mempty
+                        <> span_ [className "sr-only"] (elemStr msg)
 
 table_ :: Container GenContainer
 table_ = table [className "table"]

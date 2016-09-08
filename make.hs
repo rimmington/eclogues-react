@@ -8,7 +8,9 @@ import Control.DeepSeq (NFData)
 import Control.Monad ((<=<))
 import Control.Monad.Trans (MonadIO, liftIO)
 import Data.Binary (Binary)
+import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy.Search (replace)
 import Data.ByteString.Builder
 import Data.Char (isSpace)
 import Data.Hashable (Hashable)
@@ -64,8 +66,12 @@ main = shakeArgs shakeOptions{shakeFiles="_build"} $ do
 
     "_build/uber.min.js" %> ccjs "_build/uber.js" ["_build/react-externs.js"]
 
-    "_build/bootstrap.min.css" %> \out ->
-        writeBuilder out . foldMap lazyByteString <=< traverse download $
+    "_build/glyphicons-halflings-regular.woff" %> downloadFile "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/fonts/glyphicons-halflings-regular.woff"
+
+    "_build/bootstrap.min.css" %> \out -> do
+        let local = replace (pack "../fonts/") (pack "./")
+        need ["_build/glyphicons-halflings-regular.woff"]
+        writeBuilder out . foldMap lazyByteString <=< traverse (fmap local . download) $
             [ "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css"
             , "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" ]
 
