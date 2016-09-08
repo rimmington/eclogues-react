@@ -2,7 +2,7 @@
 
 module Components.TH where
 
-import Components.Types (RawElem, Container, present)
+import Components.Types (RawElem, Container, present, containery)
 
 import Language.Haskell.TH
 
@@ -10,7 +10,7 @@ mkContainer :: Name -> String -> DecsQ
 mkContainer a elName = (++) <$> mkRawElem a elName
                             <*> typedD (mkName $ elName ++ "_")
                                        (appT [t|Container|] (conT a))
-                                       (appE (varE $ mkName elName) [|[]|])
+                                       (appE [|containery|] (varE $ mkName elName))
 
 mkRawElem :: Name -> String -> DecsQ
 mkRawElem a elName = typedD (mkName elName)

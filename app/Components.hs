@@ -38,7 +38,6 @@ module Components (
 import Components.TH (mkContainer, mkRawElem)
 import Components.Types
 
-import Data.Bool (bool)
 import Data.Monoid ((<>))
 import qualified Data.JSString as JSS
 import Data.JSString.Text (textToJSString)
@@ -194,7 +193,7 @@ $(mkRawElem ''GenContainer "table")
 $(mkRawElem ''TextInput "textarea")
 
 $(concat <$> traverse (mkContainer ''GenContainer)
-    ["h1", "ul", "li", "section", "form", "tr", "td", "th", "thead", "tbody", "p"])
+    ["h1", "ul", "li", "section", "form", "tr", "td", "th", "thead", "tbody", "p", "nav"])
 $(mkContainer ''Label "label")
 $(mkContainer ''Link "a")
 
@@ -205,16 +204,16 @@ htmlSpan :: RawElem GenContainer
 htmlSpan = present "span"
 
 pageHeader_ :: Container GenContainer
-pageHeader_ = h1 [className "page-header"]
+pageHeader_ = containery $ h1 `preset` className "page-header"
 
 pageContainer_ :: Container GenContainer
-pageContainer_ = htmlDiv [className "container"]
+pageContainer_ = containery $ htmlDiv `preset` className "container"
 
 div_ :: Container GenContainer
-div_ = htmlDiv []
+div_ = containery htmlDiv
 
 span_ :: Container GenContainer
-span_ = htmlSpan []
+span_ = containery htmlSpan
 
 data IconType = IconAlert
 
@@ -223,25 +222,28 @@ iconClass IconAlert = "glyphicon-alert"
 
 iconMeaning_ :: IconType -> JSString -> Leaf Decorative
 iconMeaning_ typ msg = leafy $ \(ps :: [Prop Decorative]) ->
-    present "span" [] ps $ span_ [className $ "glyphicon " <> iconClass typ, ariaHidden True] mempty
-                        <> span_ [className "sr-only"] (elemStr msg)
+    present "span" ps $ span_ [className $ "glyphicon " <> iconClass typ, ariaHidden True] mempty
+                     <> span_ [className "sr-only"] (elemStr msg)
 
 table_ :: Container GenContainer
-table_ = table [className "table"]
+table_ = containery $ table `preset` className "table"
 
-tabs_ :: Element -> Element
-tabs_ = F.nav_ . F.ul_ ["className" $= "nav nav-tabs"]
+tabs_ :: Container GenContainer
+tabs_ = containery $ \ps -> nav_ . ul_ (className "nav nav-tabs" : ps)
 
-tab_ :: Bool -> Element -> Element
-tab_ active = li_ $ htmlRole "presentation" : bool [] [className "active"] active
+tab_ :: Bool -> Container GenContainer
+tab_ active = containery . act $ li `preset` htmlRole "presentation"
+  where
+    act | active    = (`preset` className "active")
+        | otherwise = id
 
-formRow_ :: JSString -> JSString -> Element -> Element
-formRow_ id_ lbl = formGroup_ [reactKey id_] . (lblElem <>) . div_ [className "col-md-10"]
+formRow_ :: JSString -> JSString -> Container GenContainer
+formRow_ id_ lbl = containery $ \ps -> formGroup_ (reactKey id_ : ps) . (lblElem <>) . div_ [className "col-md-10"]
   where
     lblElem = label_ [for id_, className "col-md-2 control-label"] $ elemStr lbl
 
-formUnlabelledRow_ :: Element -> Element
-formUnlabelledRow_ = div_ [className "col-md-offset-2 col-md-10"]
+formUnlabelledRow_ :: Container GenContainer
+formUnlabelledRow_ = containery $ htmlDiv `preset` className "col-md-offset-2 col-md-10"
 
 href :: JSString -> Prop Link
 href = strProp "href"
@@ -250,34 +252,34 @@ for :: JSString -> Prop Label
 for = strProp "htmlFor"
 
 formGroup_ :: Container GenContainer
-formGroup_ = htmlDiv [className "form-group"]
+formGroup_ = containery $ htmlDiv `preset` className "form-group"
 
 inputGroup_ :: Container GenContainer
-inputGroup_ = htmlDiv [className "input-group"]
+inputGroup_ = containery $ htmlDiv `preset` className "input-group"
 
-inputAddon_ :: Element -> Element
-inputAddon_ = span_ [className "input-group-addon"]
+inputAddon_ :: Container GenContainer
+inputAddon_ = containery $ htmlSpan `preset` className "input-group-addon"
 
 button_ :: Container Button
-button_ = button [className "btn btn-default"]
+button_ = containery $ button `preset` className "btn btn-default"
 
 disabled :: Bool -> Prop Button
 disabled = jsProp "disabled"
 
-formControlInput :: [Prop a] -> Leaf a
-formControlInput ps1 = leafy $ flip (present "input" (className "form-control" : ps1)) mempty
+formControlInput :: Prop a -> Leaf a
+formControlInput pr = leafy $ flip (present "input" `preset` className "form-control" `preset` pr) mempty
 
 input_ :: Leaf TextInput
-input_ = formControlInput ([] :: [Prop TextInput])
+input_ = formControlInput (strProp "type" "text" :: Prop TextInput)
 
 wordInput_ :: Leaf WordInput
-wordInput_ = formControlInput ([strProp "type" "number"] :: [Prop WordInput])
+wordInput_ = formControlInput (strProp "type" "number" :: Prop WordInput)
 
 checkbox_ :: Leaf Checkbox
-checkbox_ = formControlInput ([strProp "type" "checkbox"] :: [Prop Checkbox])
+checkbox_ = formControlInput (strProp "type" "checkbox" :: Prop Checkbox)
 
 textarea_ :: Leaf TextInput
-textarea_ = leafy $ flip (textarea [className "form-control"]) mempty
+textarea_ = leafy $ flip (textarea `preset` className "form-control") mempty
 
 placeholder :: JSString -> Prop TextInput
 placeholder = strProp "placeholder"
@@ -290,5 +292,5 @@ flavourSuffix Info    = "info"
 flavourSuffix Warning = "warning"
 flavourSuffix Danger  = "danger"
 
-alert_ :: Flavour -> Element -> Element
-alert_ flav = div_ [className $ "alert alert-" <> flavourSuffix flav, htmlRole "alert"]
+alert_ :: Flavour -> Container GenContainer
+alert_ flav = containery $ htmlDiv `preset` className ("alert alert-" <> flavourSuffix flav) `preset` htmlRole "alert"
