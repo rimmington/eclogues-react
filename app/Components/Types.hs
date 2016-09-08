@@ -12,7 +12,8 @@ import qualified React.Flux.Internal as F
 type ElementM  a = F.ReactElementM F.ViewEventHandler a
 type Element     = ElementM ()
 type Container a = forall i r. (Construct a i r) => i -> r
-type Leaf      a = [Prop a] -> Element
+type Leaf      a = forall r. (Leafy a r) => r
+type Leaf'     a = [Prop a] -> Element
 type RawElem   a = forall i r. (Construct a i r) => [Prop a] -> i -> r
 
 newtype Prop a = Prop { _unProp :: F.PropertyOrHandler F.ViewEventHandler }
@@ -33,3 +34,14 @@ instance (x ~ ()) => Construct a (ElementM x) (ElementM x) where
     type PropOrElement a (ElementM x) = Element
     type ElementOrFun  a (ElementM x) = Element
     present elemName ps = F.el elemName (coerce ps)
+
+class Leafy a r where
+    leafy :: ([Prop a] -> Element) -> r
+
+instance (x ~ (), a ~ a') => Leafy a ([Prop a'] -> ElementM x) where
+    leafy = id
+    {-# INLINE leafy #-}
+
+instance (x ~ ()) => Leafy a (ElementM x) where
+    leafy = ($ [])
+    {-# INLINE leafy #-}

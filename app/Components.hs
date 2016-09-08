@@ -2,13 +2,15 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Components (
       ReactStore, StoreData (..), SomeStoreAction (..), alterStore, mkStore
     , ReactView, defineView, defineControllerView, viewWithKey
-    , Element, Prop, Container, Leaf
+    , Element, Prop, Container, Leaf, Leaf'
     , GenContainer, OtherInput, Link, Label, Button
     , Clickable, HasValue (..)
     , reactRender
@@ -69,9 +71,6 @@ jsPack = JSS.pack
 
 viewWithKey :: (Typeable a) => ReactView a -> JSString -> a -> Element
 viewWithKey v k ps = F.viewWithSKey v k ps mempty
-
-empty :: Element
-empty = pure ()
 
 elemStr :: JSString -> Element
 elemStr = F.elemJSString
@@ -248,19 +247,19 @@ disabled :: Bool -> Prop Button
 disabled = jsProp "disabled"
 
 formControlInput :: [Prop a] -> Leaf a
-formControlInput ps1 ps2 = present "input" (className "form-control" : ps1) ps2 empty
+formControlInput ps1 = leafy $ flip (present "input" (className "form-control" : ps1)) mempty
 
 input_ :: Leaf TextInput
-input_ = formControlInput []
+input_ = formControlInput ([] :: [Prop TextInput])
 
 wordInput_ :: Leaf WordInput
-wordInput_ = formControlInput [strProp "type" "number"]
+wordInput_ = formControlInput ([strProp "type" "number"] :: [Prop WordInput])
 
 checkbox_ :: Leaf Checkbox
-checkbox_ = formControlInput [strProp "type" "checkbox"]
+checkbox_ = formControlInput ([strProp "type" "checkbox"] :: [Prop Checkbox])
 
 textarea_ :: Leaf TextInput
-textarea_ ps = textarea [className "form-control"] ps empty
+textarea_ = leafy $ flip (textarea [className "form-control"]) mempty
 
 placeholder :: JSString -> Prop TextInput
 placeholder = strProp "placeholder"

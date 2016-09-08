@@ -317,7 +317,7 @@ addJob = defineView "addJob" go
             SubmitFailure err -> formGroup_ [reactKey "submitError"] . formUnlabelledRow_ . alert_ Danger . elemText $ showError err
             _                 -> pure ()
       where
-        rowChangingInput :: (HasValue t) => JSString -> JSString -> Leaf t -> Maybe JSString -> NotAPrism PartialSpec (Value t) -> Element
+        rowChangingInput :: (HasValue t) => JSString -> JSString -> Leaf' t -> Maybe JSString -> NotAPrism PartialSpec (Value t) -> Element
         rowChangingInput id_ lbl typ mAddStr p = formRow_ id_' lbl . addon $ input
           where
             id_' = "rowId" <> id_
