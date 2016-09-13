@@ -304,10 +304,10 @@ addJob = defineView "addJob" go
     go (disableSubmit, subSt, s@PartialSpec{..}) = form_ [className "form-horizontal", style $ marginTop "3ex"] $ do
         rowChangingInput "name" "Name"              input_     Nothing         $ NotAPrism pname id chkName
         rowChangingInput "cmd"  "Command"           input_     Nothing         $ jusp pcmd
-        rowChangingInput "cpu"  "CPU"               wordInput_ (Just "dcores") $ jusp pcpu
-        rowChangingInput "ram"  "RAM"               wordInput_ (Just "MB")     $ jusp pram
-        rowChangingInput "disk" "Disk"              wordInput_ (Just "MB")     $ jusp pdisk
-        rowChangingInput "time" "Time"              wordInput_ (Just "s")      $ jusp ptime
+        rowChangingInput "cpu"  "CPU"               wordInput_ (Just "dcores") $ minp 1  pcpu
+        rowChangingInput "ram"  "RAM"               wordInput_ (Just "MB")     $ minp 10 pram
+        rowChangingInput "disk" "Disk"              wordInput_ (Just "MB")     $ minp 10 pdisk
+        rowChangingInput "time" "Time"              wordInput_ (Just "s")      $ minp 2  ptime
         rowChangingInput "ofp"  "Output file paths" textarea_  Nothing         $ linesNotPrism ppaths
         rowChangingInput "stdo" "Capture stdout"    checkbox_  Nothing         $ jusp pstdout
         rowChangingInput "deps" "Dependencies"      textarea_  Nothing         $ linesNotPrism pdeps
@@ -348,6 +348,8 @@ addJob = defineView "addJob" go
           where
             parse "" = []
             parse t  = T.splitOn "\n" t
+        minp :: (Ord a) => a -> Lens' s a -> NotAPrism s a
+        minp m l = NotAPrism l id (\v -> if v >= m then Just v else Nothing)
 
 addJob_ :: Bool -> SubmitStatus -> PartialSpec -> Element
 addJob_ !d !st !s = viewWithKey addJob "addJob" (d, st, s)
