@@ -180,6 +180,8 @@ instance HasValue TextInput where
 
 instance HasValue WordInput where
     type Value WordInput = Word
+    -- Otherwise display will be as Int
+    value = strProp "value" . jsPack . show
 
 instance HasValue Checkbox where
     type Value Checkbox = Bool
