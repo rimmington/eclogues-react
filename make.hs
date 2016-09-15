@@ -47,7 +47,7 @@ main = shakeArgs shakeOptions{shakeFiles="_build"} $ do
         unit $ cmd "sed -i" "s/goog.provide.*//" out
         unit $ cmd "sed -i" "s/goog.require.*//" out
 
-    "_build/all.min.js" %> ccjs "_build/all.js" []
+    "_build/all.min.js" %> ccjs "_build/all.js" ["_build/react-externs.js"]
 
     "_build/react.js" %> downloadFile "https://fb.me/react-0.14.0.js"
     "_build/react-dom.js" %> downloadFile "https://fb.me/react-dom-0.14.0.js"
@@ -55,16 +55,14 @@ main = shakeArgs shakeOptions{shakeFiles="_build"} $ do
     "_build/react.min.js" %> downloadFile "https://fb.me/react-0.14.0.min.js"
     "_build/react-dom.min.js" %> downloadFile "https://fb.me/react-dom-0.14.0.min.js"
 
-    "_build/uber-dev.js" %> \out ->
+    "_build/uber.js" %> \out ->
         writeBuilder out . foldMap lazyByteString <=< lReadFiles $
             ["_build/react.js", "_build/react-dom.js", "_build/all.js"]
 
     -- TODO: wrap all? + hide 'window'
-    "_build/uber.js" %> \out -> do
+    "_build/uber.min.js" %> \out -> do
         writeBuilder out . foldMap lazyByteString <=< lReadFiles $
-            ["_build/react.min.js", "_build/react-dom.min.js", "_build/all.js"]
-
-    "_build/uber.min.js" %> ccjs "_build/uber.js" ["_build/react-externs.js"]
+            ["_build/react.min.js", "_build/react-dom.min.js", "_build/all.min.js"]
 
     "_build/glyphicons-halflings-regular.woff" %> downloadFile "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/fonts/glyphicons-halflings-regular.woff"
 
@@ -82,8 +80,8 @@ main = shakeArgs shakeOptions{shakeFiles="_build"} $ do
     "_build/uber.min.css" %> copyFile' "_build/uber.css"
 
     "_build/index-dev.html" %> \out -> do
-        need ["_build/uber-dev.js", "_build/uber.css", "Static/Html.hs"]
-        writeBuilder out $ html "uber-dev.js" "uber.css"
+        need ["_build/uber.js", "_build/uber.css", "Static/Html.hs"]
+        writeBuilder out $ html "uber.js" "uber.css"
 
     "_build/index.html" %> \out -> do
         need ["_build/uber.min.js", "_build/uber.min.css", "Static/Html.hs"]
