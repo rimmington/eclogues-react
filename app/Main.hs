@@ -35,14 +35,14 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
-import Eclogues.API (API, JobError, JobOutput, displayError)
+import Eclogues.API (API, JobError, JobOutput, OutputType (Stdout), displayError)
 import qualified Eclogues.Job as Job
 import GHC.Generics (Generic)
 import Lens.Micro (Lens', (^.), (.~), (&), lens)
 import Lens.Micro.TH (makeLenses)
 import qualified Network.HTTP.Types.Status as HTTP
 import Network.URI (URI (..), URIAuth (..), uriToString)
-import Path (parseAbsFile, mkAbsFile)
+import Path (parseAbsFile)
 import Servant.API ((:<|>) ((:<|>)))
 import Servant.Client (BaseUrl (..), Scheme (Http), client)
 import qualified Servant.Client as SC
@@ -391,7 +391,7 @@ jobStdoutUrl :: Job.Name -> JSString
 jobStdoutUrl name = jsPack $ uriToString id outputUri ""
   where
     outputUri = outputPath{ uriScheme = "http:", uriAuthority = Just serverAuth, uriPath = '/' : uriPath outputPath }
-    outputPath = safeLink (Proxy :: Proxy API) (Proxy :: Proxy JobOutput) name $(mkAbsFile "/stdout")
+    outputPath = safeLink (Proxy :: Proxy API) (Proxy :: Proxy JobOutput) name Stdout
 
 -- TODO: What happened to ConnectionError in ghcjs-servant-client?
 convError :: ServantError -> SubmitError

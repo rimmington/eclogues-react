@@ -19,7 +19,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/rimmington/eclogues
-    commit: 6342dae224d209ae3a8e0ef4b126c3f20abd499d
+    commit: b5a3421119a37d0b8e874f3cf7c124e4ab33f076
   extra-dep: true
   subdirs:
   - eclogues
