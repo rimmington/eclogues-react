@@ -205,7 +205,10 @@ app = defineControllerView "eclogues app" store $ \s () ->
               in alert_ Danger . elemText $ intro <> Job.nameText n <> ": " <> showError e
             _                                -> pure ()
         links_ $ page s
-        section_ [htmlId "main"] $ pageElement_ s
+        section_ [htmlId mainId] $ pageElement_ s
+
+mainId :: JSString
+mainId = "main"
 
 pageElement_ :: State -> Element
 pageElement_ State{..} = case page of
@@ -221,7 +224,9 @@ links_ cur = tabs_ $ do
     tab "Add Job"  AddJob
   where
     tab :: JSString -> Page -> Element
-    tab lbl dest = tab_ (dest == cur) . a_ [href "#", goto dest] $ elemStr lbl
+    tab lbl dest = linkTab_ active [href "#", goto dest, ariaControls mainId] $ elemStr lbl
+      where
+        active = dest == cur
     goto :: Page -> Prop Link
     goto dest = onClick $ \_ _ -> dispatchState $ SwitchPage dest
 
@@ -235,7 +240,7 @@ statusList_ ss lz = do
     lv = lzoom lz ss
 
 pagination_ :: ListZoom -> ListView -> Element
-pagination_ lz@ListZoom{..} ListView{..} = ul_ [className "pager", style topStyle] $ do
+pagination_ lz@ListZoom{..} ListView{..} = pager_ "Job list pages" [style topStyle] $ do
     but prev "previous" (arr "← " <> "Previous") $ isJust topKey
     li_ [style displayCell] $ filterBox_ lz
     but next "next" ("Next" <> arr " →") $ listMaxInt < length curSpan
@@ -251,9 +256,10 @@ pagination_ lz@ListZoom{..} ListView{..} = ul_ [className "pager", style topStyl
         dropping = length prevSpan - listMaxInt
     updateTop k = dispatchState $ UpdateListZoom lz{ topKey = k }
     listMaxInt = fromIntegral listMax
-    but f cls bdy prd = li_ [className cls', style endStyle]
-        . a_ (href "#" : clk) $ bdy
+    but f cls bdy prd = li_ [className cls', style endStyle] . e_ $ bdy
       where
+        e_ | prd       = a_ (href "#" : ariaRole Button : clk)
+           | otherwise = span_ [ariaDisabled True, ariaRole Button]
         clk | prd       = [onClick f]
             | otherwise = []
         cls' | prd       = cls
@@ -261,7 +267,7 @@ pagination_ lz@ListZoom{..} ListView{..} = ul_ [className "pager", style topStyl
     arr = span_ [ariaHidden True]
 
 filterBox_ :: ListZoom -> Element
-filterBox_ lz = form_ . inputGroup_ [style $ marginX "auto"]
+filterBox_ lz = form_ [ariaRole Search] . inputGroup_ [style $ marginX "auto"]
     $ input_ [ value $ maybe "" Job.nameText cur
              , onChange change
              , placeholder "Filter by name"
@@ -372,8 +378,8 @@ statusRow = defineView "status-row" $ \s ->
                         jsUnpack $ "Dependencies " <> T.intercalate ", " (Job.nameText <$> ns) <> " are unsatisfiable"
                     Job.InsufficientResources -> "Insufficient resources to run job"
             _                       -> mempty
-      td "output" . a_ [href . jobStdoutUrl $ statusKey s, inNewTab, style $ padX "1em" <> padY "1ex"] $
-          iconMeaning_ IconDownload "stdout"
+      td "output" . a_ [href . jobStdoutUrl $ statusKey s, inNewTab, style $ padX "1em" <> padY "1ex"] .
+          iconMeaning_ IconDownload $ "Download " <> statusKeyStr s <> " stdout"
       td "delete" . button_ [onClick $ \_ _ -> delete] . elemStr . jsPack $ show deleteType
   where
     td :: JSString -> Element -> Element

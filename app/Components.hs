@@ -20,7 +20,7 @@ module Components (
     , a_, href, inNewTab, onClick
     , table_, thead_, tbody_, tr_, th_, td_
     , ul_, li_
-    , tabs_, tab_
+    , tabs_, tab_, linkTab_, pager_
     , form_, formGroup_, formRow_, formUnlabelledRow_, inputGroup_, inputAddon_
     , TextInput, input_, textarea_, placeholder
     , WordInput, wordInput_
@@ -33,7 +33,7 @@ module Components (
     , style, width, displayTable, displayCell, textColour
     , marginTop, marginLow, marginLeft, marginRight, marginX, marginY
     , padTop, padLow, padLeft, padRight, padX, padY
-    , ariaHidden
+    , AriaRole (..), ariaRole, ariaHidden, ariaSelected, ariaDisabled, ariaLabel, ariaControls
     ) where
 
 import Components.TH (mkContainer, mkRawElem)
@@ -88,11 +88,34 @@ reactKey = strProp "key"
 className :: JSString -> Prop a
 className = strProp "className"
 
-htmlRole :: JSString -> Prop a
-htmlRole = strProp "role"
+data AriaRole = Alert | Button | Presentation | Search | TabList | Tab
+              deriving (Eq, Show)
+
+ariaRoleStr :: AriaRole -> JSString
+ariaRoleStr Alert        = "alert"
+ariaRoleStr Button       = "button"
+ariaRoleStr Presentation = "presentation"
+ariaRoleStr Search       = "search"
+ariaRoleStr TabList      = "tablist"
+ariaRoleStr Tab          = "tab"
+
+ariaRole :: AriaRole -> Prop a
+ariaRole = strProp "role" . ariaRoleStr
 
 ariaHidden :: Bool -> Prop a
 ariaHidden = jsProp "aria-hidden"
+
+ariaSelected :: Bool -> Prop a
+ariaSelected = jsProp "aria-selected"
+
+ariaDisabled :: Bool -> Prop a
+ariaDisabled = jsProp "aria-disabled"
+
+ariaLabel :: JSString -> Prop a
+ariaLabel = strProp "aria-label"
+
+ariaControls :: JSString -> Prop a
+ariaControls = strProp "aria-controls"
 
 title :: JSString -> Prop a
 title = strProp "title"
@@ -253,13 +276,19 @@ table_ :: Container GenContainer
 table_ = containery $ table `preset` className "table"
 
 tabs_ :: Container GenContainer
-tabs_ = containery $ \ps -> nav_ . ul_ (className "nav nav-tabs" : ps)
+tabs_ = containery $ \ps -> nav_ . ul_ (className "nav nav-tabs" : ariaRole TabList : ps)
 
 tab_ :: Bool -> Container GenContainer
-tab_ active = containery . act $ li `preset` htmlRole "presentation"
+tab_ active = containery . act $ li `preset` ariaRole Presentation
   where
     act | active    = (`preset` className "active")
         | otherwise = id
+
+linkTab_ :: Bool -> Container Link
+linkTab_ active = containery $ \ps -> tab_ active . a_ (ariaRole Tab : ariaSelected active : ps)
+
+pager_ :: JSString -> Container GenContainer
+pager_ lbl = containery $ \ps -> nav_ [ariaLabel lbl] . ul_ (className "pager" : ps)
 
 formRow_ :: JSString -> JSString -> Container GenContainer
 formRow_ id_ lbl = containery $ \ps -> formGroup_ (reactKey id_ : ps) . (lblElem <>) . div_ [className "col-md-10"]
@@ -320,4 +349,4 @@ flavourSuffix Warning = "warning"
 flavourSuffix Danger  = "danger"
 
 alert_ :: Flavour -> Container GenContainer
-alert_ flav = containery $ htmlDiv `preset` className ("alert alert-" <> flavourSuffix flav) `preset` htmlRole "alert"
+alert_ flav = containery $ htmlDiv `preset` className ("alert alert-" <> flavourSuffix flav) `preset` ariaRole Alert
