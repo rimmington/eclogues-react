@@ -10,7 +10,7 @@ import Text.Blaze.Html5
 import Text.Blaze.Html5.Attributes hiding (title)
 
 html :: FilePath -> FilePath -> Builder
-html js css = renderHtmlBuilder . docTypeHtml $ do
+html js css = renderHtmlBuilder . (docTypeHtml ! lang "en") $ do
     head $ do
         title "Eclogues Jobs"
         meta ! charset "utf-8"
