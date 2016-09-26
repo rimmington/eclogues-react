@@ -229,7 +229,7 @@ statusList_ :: Set Status -> ListZoom -> Element
 statusList_ ss lz = do
     pagination_ lz lv
     table_ $ do
-        thead_ . tr_ $ th_ [style $ width "50%"] "Name" <> th_ "Stage" <> th_ "Output" <> th_ "Delete"
+        thead_ . tr_ $ th_ [style $ width "50%"] "Name" <> th_ "Stage" <> th_ "Stdout" <> th_ "Delete"
         tbody_ . mapM_ statusRow_ $ take (fromIntegral listMax) (curSpan lv)
   where
     lv = lzoom lz ss
@@ -372,7 +372,7 @@ statusRow = defineView "status-row" $ \s ->
                         jsUnpack $ "Dependencies " <> T.intercalate ", " (Job.nameText <$> ns) <> " are unsatisfiable"
                     Job.InsufficientResources -> "Insufficient resources to run job"
             _                       -> mempty
-      td "output" $ a_ [href . jobStdoutUrl $ statusKey s] "stdout"
+      td "output" . a_ [href . jobStdoutUrl $ statusKey s, style $ padX "1em" <> padY "1ex"] $ iconMeaning_ IconDownload "stdout"
       td "delete" . button_ [onClick $ \_ _ -> delete] . elemStr . jsPack $ show deleteType
   where
     td :: JSString -> Element -> Element

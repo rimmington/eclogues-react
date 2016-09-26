@@ -32,6 +32,7 @@ module Components (
     , htmlId, className, reactKey, title
     , style, width, displayTable, displayCell, textColour
     , marginTop, marginLow, marginLeft, marginRight, marginX, marginY
+    , padTop, padLow, padLeft, padRight, padX, padY
     , ariaHidden
     ) where
 
@@ -133,6 +134,24 @@ marginLeft = txtStyle "marginLeft"
 marginRight :: JSString -> Style
 marginRight = txtStyle "marginRight"
 
+padY :: JSString -> Style
+padY v = padTop v <> padLow v
+
+padTop :: JSString -> Style
+padTop = txtStyle "paddingTop"
+
+padLow :: JSString -> Style
+padLow = txtStyle "paddingBottom"
+
+padX :: JSString -> Style
+padX v = padLeft v <> padRight v
+
+padLeft :: JSString -> Style
+padLeft = txtStyle "paddingLeft"
+
+padRight :: JSString -> Style
+padRight = txtStyle "paddingRight"
+
 width :: JSString -> Style
 width = txtStyle "width"
 
@@ -218,9 +237,12 @@ span_ :: Container GenContainer
 span_ = containery htmlSpan
 
 data IconType = IconAlert
+              | IconDownload
+              deriving (Show, Eq)
 
 iconClass :: IconType -> JSString
-iconClass IconAlert = "glyphicon-alert"
+iconClass IconAlert    = "glyphicon-alert"
+iconClass IconDownload = "glyphicon-download"
 
 iconMeaning_ :: IconType -> JSString -> Leaf Decorative
 iconMeaning_ typ msg = leafy $ \(ps :: [Prop Decorative]) ->
