@@ -17,7 +17,7 @@ module Components (
     , pageContainer_, pageHeader_, section_
     , h1_
     , div_, p_, span_
-    , a_, href, onClick
+    , a_, href, inNewTab, onClick
     , table_, thead_, tbody_, tr_, th_, td_
     , ul_, li_
     , tabs_, tab_
@@ -271,6 +271,9 @@ formUnlabelledRow_ = containery $ htmlDiv `preset` className "col-md-offset-2 co
 
 href :: JSString -> Prop Link
 href = strProp "href"
+
+inNewTab :: Prop Link
+inNewTab = strProp "target" "_blank"
 
 for :: JSString -> Prop Label
 for = strProp "htmlFor"

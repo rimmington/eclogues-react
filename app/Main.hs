@@ -372,7 +372,8 @@ statusRow = defineView "status-row" $ \s ->
                         jsUnpack $ "Dependencies " <> T.intercalate ", " (Job.nameText <$> ns) <> " are unsatisfiable"
                     Job.InsufficientResources -> "Insufficient resources to run job"
             _                       -> mempty
-      td "output" . a_ [href . jobStdoutUrl $ statusKey s, style $ padX "1em" <> padY "1ex"] $ iconMeaning_ IconDownload "stdout"
+      td "output" . a_ [href . jobStdoutUrl $ statusKey s, inNewTab, style $ padX "1em" <> padY "1ex"] $
+          iconMeaning_ IconDownload "stdout"
       td "delete" . button_ [onClick $ \_ _ -> delete] . elemStr . jsPack $ show deleteType
   where
     td :: JSString -> Element -> Element
