@@ -88,12 +88,13 @@ reactKey = strProp "key"
 className :: JSString -> Prop a
 className = strProp "className"
 
-data AriaRole = Alert | Button | Presentation | Search | TabList | Tab
+data AriaRole = Alert | Button | Link | Presentation | Search | TabList | Tab
               deriving (Eq, Show)
 
 ariaRoleStr :: AriaRole -> JSString
 ariaRoleStr Alert        = "alert"
 ariaRoleStr Button       = "button"
+ariaRoleStr Link         = "link"
 ariaRoleStr Presentation = "presentation"
 ariaRoleStr Search       = "search"
 ariaRoleStr TabList      = "tablist"

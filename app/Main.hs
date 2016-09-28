@@ -362,28 +362,31 @@ addJob_ !d !st !s = viewWithKey addJob "addJob" (d, st, s)
 -- NOTE: react-flux only does strict comparisons for 3-tuples and smaller
 
 statusRow :: ReactView Status
-statusRow = defineView "status-row" $ \s ->
-    let stage      = unStatus s ^. Job.stage
+statusRow = defineView "status-row" go
+  where
+    go s = tr_ $ do
+        td "name"   . elemStr $ statusKeyStr s
+        td "stage"  $ do
+            elemStr . jsPack $ Job.majorStage stage
+            case unStatus s ^. Job.satis of
+                Job.Unsatisfiable r -> iconMeaning_ IconAlert "Warning" [style $ marginLeft "1em" <> textColour "orange", title msg]
+                  where
+                    msg = case r of
+                        Job.DependenciesUnsatisfiable ns ->
+                            jsUnpack $ "Dependencies " <> T.intercalate ", " (Job.nameText <$> ns) <> " are unsatisfiable"
+                        Job.InsufficientResources -> "Insufficient resources to run job"
+                _                       -> mempty
+        td "output" . e_ . iconMeaning_ IconDownload $ "Download " <> statusKeyStr s <> " stdout"
+        td "delete" . button_ [onClick $ \_ _ -> delete] . elemStr . jsPack $ show deleteType
+      where
+        stage      = unStatus s ^. Job.stage
         deleteType = bool Cancel Delete $ Job.isTerminationStage stage
         delete     = dispatchState $ DeleteJob (statusKey s) deleteType
-    in tr_ $ do
-      td "name"   . elemStr $ statusKeyStr s
-      td "stage"  $ do
-        elemStr . jsPack $ Job.majorStage stage
-        case unStatus s ^. Job.satis of
-            Job.Unsatisfiable r -> iconMeaning_ IconAlert "Warning" [style $ marginLeft "1em" <> textColour "orange", title msg]
-              where
-                msg = case r of
-                    Job.DependenciesUnsatisfiable ns ->
-                        jsUnpack $ "Dependencies " <> T.intercalate ", " (Job.nameText <$> ns) <> " are unsatisfiable"
-                    Job.InsufficientResources -> "Insufficient resources to run job"
-            _                       -> mempty
-      td "output" . a_ [href . jobStdoutUrl $ statusKey s, inNewTab, style $ padX "1em" <> padY "1ex"] .
-          iconMeaning_ IconDownload $ "Download " <> statusKeyStr s <> " stdout"
-      td "delete" . button_ [onClick $ \_ _ -> delete] . elemStr . jsPack $ show deleteType
-  where
-    td :: JSString -> Element -> Element
-    td k = td_ [reactKey k]
+        td k       = td_ [reactKey k]
+        e_ | stage == Job.Finished = a_ [href . jobStdoutUrl $ statusKey s, inNewTab, style sstyle] . ($ [])
+           | otherwise             = ($ [ariaRole Link, ariaDisabled True, style $ sstyle <> textColour "#ccc"])
+          where
+            sstyle = padX "1em" <> padY "1ex"
 
 statusRow_ :: Status -> Element
 statusRow_ !s = viewWithKey statusRow (statusKeyStr s) s
