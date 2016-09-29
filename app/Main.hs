@@ -383,8 +383,8 @@ statusRow = defineView "status-row" go
         deleteType = bool Cancel Delete $ Job.isTerminationStage stage
         delete     = dispatchState $ DeleteJob (statusKey s) deleteType
         td k       = td_ [reactKey k]
-        e_ | stage == Job.Finished = a_ [href . jobStdoutUrl $ statusKey s, inNewTab, style sstyle] . ($ [])
-           | otherwise             = ($ [ariaRole Link, ariaDisabled True, style $ sstyle <> textColour "#ccc"])
+        e_ | Job.isTerminationStage stage = a_ [href . jobStdoutUrl $ statusKey s, inNewTab, style sstyle] . ($ [])
+           | otherwise                    = ($ [ariaRole Link, ariaDisabled True, style $ sstyle <> textColour "#ccc"])
           where
             sstyle = padX "1em" <> padY "1ex"
 
