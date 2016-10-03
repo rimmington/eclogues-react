@@ -49,11 +49,11 @@ main = shakeArgs shakeOptions{shakeFiles="_build"} $ do
 
     "_build/all.min.js" %> ccjs "_build/all.js" ["_build/react-externs.js"]
 
-    "_build/react.js" %> downloadFile "https://fb.me/react-0.14.0.js"
-    "_build/react-dom.js" %> downloadFile "https://fb.me/react-dom-0.14.0.js"
+    "_build/react.js" %> downloadFile "https://unpkg.com/react@15.3.2/dist/react.js"
+    "_build/react-dom.js" %> downloadFile "https://unpkg.com/react-dom@15.3.2/dist/react-dom.js"
     "_build/react-externs.js" %> downloadFile "https://raw.githubusercontent.com/steida/react-externs/0fac28595bd1fa7b95d0ed302a04003d9ab4fb69/externs.js"
-    "_build/react.min.js" %> downloadFile "https://fb.me/react-0.14.0.min.js"
-    "_build/react-dom.min.js" %> downloadFile "https://fb.me/react-dom-0.14.0.min.js"
+    "_build/react.min.js" %> downloadFile "https://unpkg.com/react@15.3.2/dist/react.min.js"
+    "_build/react-dom.min.js" %> downloadFile "https://unpkg.com/react-dom@15.3.2/dist/react-dom.min.js"
 
     "_build/uber.js" %> \out ->
         writeBuilder out . foldMap lazyByteString <=< lReadFiles $
