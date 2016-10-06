@@ -19,8 +19,8 @@ import Components
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (async)
 import Control.DeepSeq (NFData)
+import Control.Exception (SomeException (..), displayException)
 import Control.Monad (void)
-import Control.Monad.Trans.Either (EitherT, runEitherT)
 import Data.Aeson (decode')
 import Data.Bifunctor (bimap)
 import Data.Bool (bool)
@@ -43,10 +43,9 @@ import Lens.Micro.TH (makeLenses)
 import qualified Network.HTTP.Types.Status as HTTP
 import Network.URI (URI (..), URIAuth (..), uriToString)
 import Path (parseAbsFile)
-import Servant.API ((:<|>) ((:<|>)))
-import Servant.Client (BaseUrl (..), Scheme (Http), client)
+import Servant.API ((:<|>) (..), NoContent)
+import Servant.Client (BaseUrl (..), ServantError, Scheme (Http), client)
 import qualified Servant.Client as SC
-import Servant.Common.Req (ServantError)
 import Servant.Utils.Links (safeLink)
 
 newtype Status = Status { unStatus :: Job.Status }
@@ -111,10 +110,10 @@ data PartialSpec = PartialSpec { _pname   :: !Text
 
 $(makeLenses ''PartialSpec)
 
-getJobs :: EitherT ServantError IO [Job.Status]
-putJobStage :: Job.Name -> Job.Stage -> EitherT ServantError IO ()
-deleteJob :: Job.Name -> EitherT ServantError IO ()
-createJob :: Job.Spec -> EitherT ServantError IO ()
+getJobs :: SC.ClientM [Job.Status]
+putJobStage :: Job.Name -> Job.Stage -> SC.ClientM NoContent
+deleteJob :: Job.Name -> SC.ClientM NoContent
+createJob :: Job.Spec -> SC.ClientM NoContent
 (     getJobs
  :<|> _
  :<|> _
@@ -123,10 +122,13 @@ createJob :: Job.Spec -> EitherT ServantError IO ()
  :<|> _
  :<|> deleteJob
  :<|> createJob
- :<|> _) = client (Proxy :: Proxy API) . Just $ BaseUrl Http Awful.hostname Awful.port
+ :<|> _) = client (Proxy :: Proxy API)
 
-justError :: EitherT ServantError IO () -> IO (Maybe SubmitError)
-justError = fmap (either (Just . convError) (const Nothing)) . runEitherT
+clientEnv :: SC.ClientEnv
+clientEnv = SC.ClientEnv $ BaseUrl Http Awful.hostname Awful.port ""
+
+justError :: SC.ClientM NoContent -> IO (Maybe SubmitError)
+justError = fmap (either (Just . convError) (const Nothing)) . (`SC.runClientM` clientEnv)
 
 defPartialSpec :: PartialSpec
 defPartialSpec = PartialSpec "" "" 10 10 1 60 [] False []
@@ -177,7 +179,7 @@ instance StoreData State where
 
 -- TODO: handle errors more gracefully
 updateJobs :: IO ()
-updateJobs = void . async $ runEitherT getJobs >>= \r ->
+updateJobs = void . async $ SC.runClientM getJobs clientEnv >>= \r ->
     alterStore store . RefreshReturn $ bimap convError (Set.fromList . fmap Status) r
 
 defName :: Job.Name
@@ -401,10 +403,12 @@ jobStdoutUrl :: Job.Name -> JSString
 jobStdoutUrl name = jsPack $ uriToString id outputUri ""
   where
     outputUri = outputPath{ uriScheme = "http:", uriAuthority = Just serverAuth, uriPath = '/' : uriPath outputPath }
-    outputPath = safeLink (Proxy :: Proxy API) (Proxy :: Proxy JobOutput) name Stdout
+    outputPath = safeLink (Proxy :: Proxy API) (Proxy :: Proxy JobOutput) name $ Just Stdout
 
 -- TODO: What happened to ConnectionError in ghcjs-servant-client?
 convError :: ServantError -> SubmitError
+convError (SC.ConnectionError (SomeException e))
+    = ConnectionError . T.pack . displayException $ e
 convError (SC.FailureResponse (HTTP.Status code _) _ body)
     | code == 0              = ConnectionError "Error connecting to server"
     | Just e <- decode' body = FailureResponse e

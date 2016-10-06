@@ -1,25 +1,28 @@
 # For more information, see: https://github.com/commercialhaskell/stack/blob/release/doc/yaml_configuration.md
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-3.9
-compiler: ghcjs-0.2.0.20151230.3_ghc-7.10.2
+resolver: lts-6.21
+compiler: ghcjs-0.2.0.9006021_ghc-7.10.3
 compiler-check: match-exact
 setup-info:
   ghcjs:
     source:
-      ghcjs-0.2.0.20151230.3_ghc-7.10.2:
-        url: "https://github.com/nrolland/ghcjs/releases/download/v.0.2.0.20151230.3/ghcjs-0.2.0.20151230.3.tar.gz"
+      ghcjs-0.2.0.9006021_ghc-7.10.3:
+          url: http://ghcjs.tolysz.org/lts-6.21-9006021.tar.gz
+          sha1: 80b83f85dcec182093418e843979f4cee092fa85
 
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
 - location:
-    git: https://github.com/rimmington/ghcjs-servant-client
-    commit: 6de1dc0a3cb94faccbd8e7b8291ec33679d841e7
+    git: https://github.com/rimmington/servant
+    commit: c58b553ca30964140d523e5b4d0b9b59281b91a8
+  subdirs:
+  - servant-client
   extra-dep: true
 - location:
     git: https://github.com/rimmington/eclogues
-    commit: 3880b644b0ea76c51df89826fe25b0abecb8c17e
+    commit: c6e2969d9e5a67e32e1ed8c9679e666091bdf5d2
   extra-dep: true
   subdirs:
   - eclogues
@@ -37,17 +40,20 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/rimmington/units
-    commit: 7e11e858387923ad793115e6f2bdca5af968ccf4
+    commit: f36151837c14c8a15ea4264529d22eb8c696df8d
+  extra-dep: true
+- location:
+    git: https://github.com/rimmington/units-attoparsec
+    commit: d9fc2abcea18d36da400a778ba1efa8f7a99c715
   extra-dep: true
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- react-flux-1.2.1
-- units-attoparsec-1.0
-- units-defs-2.0.0.1
+- react-flux-1.2.3
+- servant-0.9
+- http-api-data-0.3.1
+- units-defs-2.0.1.1
 - units-parser-0.1.0.0
-- microlens-0.4.2.0
-- microlens-th-0.3.0.1
 
 # Override default flag values for local packages and extra-deps
 flags: {}

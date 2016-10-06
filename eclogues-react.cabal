@@ -24,8 +24,7 @@ executable eclogues-react
                      , react-flux
                      , eclogues
                      , servant
-                     , ghcjs-servant-client
-                     , either
+                     , servant-client
                      , microlens
                      , microlens-th
                      , text
