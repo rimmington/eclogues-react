@@ -173,9 +173,9 @@ instance StoreData State where
                 Delete -> deleteJob n
                 Cancel -> putJobStage n $ Job.Failed Job.UserKilled
         _ <- async $ alterStore store . DeleteReturn n t =<< justError action
-        pure s{ deleteStatus = defDeleteStatus }
+        pure s{ deleteStatus = DeleteStatus n t Submitting }
     transform (DeleteReturn n t (Just e)) s = pure s{ deleteStatus = DeleteStatus n t $ SubmitFailure e }
-    transform (DeleteReturn n t Nothing)  s = pure s{ deleteStatus = DeleteStatus n t NotSubmitted}
+    transform (DeleteReturn _ _ Nothing)  s = pure s{ deleteStatus = defDeleteStatus }
 
 -- TODO: handle errors more gracefully
 updateJobs :: IO ()
