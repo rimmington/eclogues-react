@@ -35,10 +35,6 @@ packages:
     commit: 87053f6e5892df1f1d7dc3bf85ee2677e7a41bf8
   extra-dep: true
 - location:
-    git: https://github.com/chrisdone/path
-    commit: 9af2a76b2e587c6f763c7e6eae53285f49e1c95d
-  extra-dep: true
-- location:
     git: https://github.com/rimmington/units
     commit: f36151837c14c8a15ea4264529d22eb8c696df8d
   extra-dep: true
