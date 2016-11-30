@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --resolver=lts-3.9 --compiler=ghc-7.10.2 runghc --package=shake
+-- stack --resolver=lts-6.21 --compiler=ghc-7.10.2 runghc --package shake --package blaze-html --package stringsearch --package mtl
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 import Static.Html (html)
