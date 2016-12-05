@@ -42,6 +42,10 @@ packages:
     git: https://github.com/rimmington/units-attoparsec
     commit: d9fc2abcea18d36da400a778ba1efa8f7a99c715
   extra-dep: true
+- location:
+    git: https://github.com/rimmington/hs-flux-bootstrap
+    commit: ba0c7acebde9f948e8c97d00de9e2931f1d7ef8d
+  extra-dep: true
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:

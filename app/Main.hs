@@ -14,7 +14,8 @@
 module Main where
 
 import qualified Awful
-import Components
+import React.Flux.Components
+import React.Flux.Components.Util
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (async)
