@@ -343,8 +343,8 @@ addJob = defineView "addJob" go
         mkSpec = do
             name <- Job.mkName _pname
             cmd <- if T.null _pcmd then Nothing else Just _pcmd
-            res <- Job.mkResources (fromIntegral _pram      %> mega Byte)
-                                   (fromIntegral _pdisk     %> mega Byte)
+            res <- Job.mkResources (fromIntegral _pdisk     %> mega Byte)
+                                   (fromIntegral _pram      %> mega Byte)
                                    (fromIntegral _pcpu * 10 %> centi Core)
                                    (fromIntegral _ptime     %> Second)
             paths <- traverse (fmap Job.OutputPath . parseAbsFile . T.unpack) _ppaths
