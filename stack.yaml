@@ -22,7 +22,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/rimmington/eclogues
-    commit: f156aaf7922e8f7ab5af2487306f3734c863e909
+    commit: 452843c53448461a1d2e22cf3ccf333782959c68
   extra-dep: true
   subdirs:
   - eclogues
@@ -32,7 +32,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/dstil/digital-metrology-frontiers
-    commit: 87053f6e5892df1f1d7dc3bf85ee2677e7a41bf8
+    commit: 69b558ea3f441a6c3444fa1657cb327511f5892f
   extra-dep: true
 - location:
     git: https://github.com/rimmington/units

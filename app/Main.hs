@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -26,12 +27,16 @@ import Data.Aeson (decode')
 import Data.Bifunctor (bimap)
 import Data.Bool (bool)
 import Data.Function (on)
+import Data.JSString (toLower)
 import Data.Maybe (fromMaybe, isNothing, isJust, listToMaybe)
-import Data.Metrology.Computing (Byte (Byte), Core (Core), (%>))
-import Data.Metrology.SI (Second (Second), mega, centi)
+import Data.Metrology (LCSU (DefaultLCSU), Qu)
+import Data.Metrology.Computing (Byte (Byte), Core (Core), (%>), (#>))
+import Data.Metrology.SI (Second (Second), mega, deci)
+import Data.Metrology.Suspicious (ValidExpUnit)
 import Data.Monoid ((<>))
 import Data.Ord (comparing)
 import Data.Proxy (Proxy (Proxy))
+import qualified Data.Scientific.Suspicious as S
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -39,7 +44,7 @@ import qualified Data.Text as T
 import Eclogues.API (API, JobError, JobOutput, OutputType (Stdout), displayError)
 import qualified Eclogues.Job as Job
 import GHC.Generics (Generic)
-import Lens.Micro (Lens', (^.), (.~), (&), lens)
+import Lens.Micro (Lens', SimpleGetter, (^.), (.~), (&), lens, to)
 import Lens.Micro.TH (makeLenses)
 import qualified Network.HTTP.Types.Status as HTTP
 import Network.URI (URI (..), URIAuth (..), uriToString)
@@ -132,7 +137,7 @@ justError :: SC.ClientM NoContent -> IO (Maybe SubmitError)
 justError = fmap (either (Just . convError) (const Nothing)) . (`SC.runClientM` clientEnv)
 
 defPartialSpec :: PartialSpec
-defPartialSpec = PartialSpec "" "" 10 10 1 60 [] False []
+defPartialSpec = PartialSpec "" "" 128 10 1 60 [] False []
 
 defListZoom :: ListZoom
 defListZoom = ListZoom Nothing Nothing
@@ -311,15 +316,15 @@ addJob :: ReactView (Bool, SubmitStatus, PartialSpec)
 addJob = defineView "addJob" go
   where
     go (disableSubmit, subSt, s@PartialSpec{..}) = form_ [className "form-horizontal", style $ marginTop "3ex"] $ do
-        rowChangingInput "name" "Name"              input_     Nothing         $ NotAPrism pname id chkName
-        rowChangingInput "cmd"  "Command"           input_     Nothing         $ jusp pcmd
-        rowChangingInput "cpu"  "CPU"               wordInput_ (Just "dcores") $ minp 1  pcpu
-        rowChangingInput "ram"  "RAM"               wordInput_ (Just "MB")     $ minp 10 pram
-        rowChangingInput "disk" "Disk"              wordInput_ (Just "MB")     $ minp 10 pdisk
-        rowChangingInput "time" "Time"              wordInput_ (Just "s")      $ minp 2  ptime
-        rowChangingInput "ofp"  "Output file paths" textarea_  Nothing         $ linesNotPrism ppaths
-        rowChangingInput "stdo" "Capture stdout"    checkbox_  Nothing         $ jusp pstdout
-        rowChangingInput "deps" "Dependencies"      textarea_  Nothing         $ linesNotPrism pdeps
+        rowChangingInput "name" "Name"              input_     Nothing  $ NotAPrism pname id chkName
+        rowChangingInput "cmd"  "Command"           input_     Nothing  $ jusp pcmd
+        resourceRow             "CPU"               Job.cpu  (deci Core)  pcpu
+        resourceRow             "RAM"               Job.ram  (mega Byte)  pram
+        resourceRow             "Disk"              Job.disk (mega Byte)  pdisk
+        resourceRow             "Time"              Job.time Second       ptime
+        rowChangingInput "ofp"  "Output file paths" textarea_  Nothing  $ linesNotPrism ppaths
+        rowChangingInput "stdo" "Capture stdout"    checkbox_  Nothing  $ jusp pstdout
+        rowChangingInput "deps" "Dependencies"      textarea_  Nothing  $ linesNotPrism pdeps
         formGroup_ [reactKey "submit"] . formUnlabelledRow_ $
             button_ [disabled cannotSubmit, onClick $ \_ _ -> submit] "Submit"
         case subSt of
@@ -334,6 +339,13 @@ addJob = defineView "addJob" go
                 Nothing  -> ip
                 Just str -> inputGroup_ $ ip <> inputAddon_ (elemStr str)
             input = typ [htmlId id_', value (s `pget` p), changing p]
+        resourceRow :: (ValidExpUnit fs u, Show u) => JSString -> SimpleGetter Job.Resources (Qu fs 'DefaultLCSU S.Sustific) -> u -> Lens' PartialSpec Word -> Element
+        resourceRow lbl rl u l = rowChangingInput (toLower lbl) lbl wordInput_ (Just . jsPack $ show u) $ minp (minBound ^. rl . inUnit u) l
+          where
+            minp :: (Ord a) => a -> Lens' s a -> NotAPrism s a
+            minp m ln = NotAPrism ln id (partial (>= m))
+            inUnit un = to $ fromIntegral . S.ceiling . (#> un)
+            partial p a = bool Nothing (Just a) (p a)
         changing :: (HasValue t) => NotAPrism PartialSpec (Value t) -> Prop t
         changing p = onChange $ \_ val -> case pset p s val of
             Nothing -> []
@@ -343,10 +355,10 @@ addJob = defineView "addJob" go
         mkSpec = do
             name <- Job.mkName _pname
             cmd <- if T.null _pcmd then Nothing else Just _pcmd
-            res <- Job.mkResources (fromIntegral _pdisk     %> mega Byte)
-                                   (fromIntegral _pram      %> mega Byte)
-                                   (fromIntegral _pcpu * 10 %> centi Core)
-                                   (fromIntegral _ptime     %> Second)
+            res <- Job.mkResources (fromIntegral _pdisk %> mega Byte)
+                                   (fromIntegral _pram  %> mega Byte)
+                                   (fromIntegral _pcpu  %> deci Core)
+                                   (fromIntegral _ptime %> Second)
             paths <- traverse (fmap Job.OutputPath . parseAbsFile . T.unpack) _ppaths
             deps <- traverse Job.mkName _pdeps
             pure $ Job.mkSpec name cmd res paths _pstdout deps Job.Sometime
@@ -357,8 +369,6 @@ addJob = defineView "addJob" go
           where
             parse "" = []
             parse t  = T.splitOn "\n" t
-        minp :: (Ord a) => a -> Lens' s a -> NotAPrism s a
-        minp m l = NotAPrism l id (\v -> if v >= m then Just v else Nothing)
 
 addJob_ :: Bool -> SubmitStatus -> PartialSpec -> Element
 addJob_ !d !st !s = viewWithKey addJob "addJob" (d, st, s)

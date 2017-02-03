@@ -29,6 +29,7 @@ executable eclogues-react
                      , async
                      , deepseq
                      , digital-metrology-frontiers
+                     , units
                      , units-defs
                      , ghcjs-base
                      , aeson
