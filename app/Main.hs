@@ -349,7 +349,7 @@ addJob = defineView "addJob" go
                                    (fromIntegral _ptime     %> Second)
             paths <- traverse (fmap Job.OutputPath . parseAbsFile . T.unpack) _ppaths
             deps <- traverse Job.mkName _pdeps
-            pure $ Job.mkSpec name cmd res paths _pstdout deps
+            pure $ Job.mkSpec name cmd res paths _pstdout deps Job.Sometime
         submit = maybe [] (dispatchState . SubmitJob) mkSpec
         cannotSubmit = disableSubmit || subSt == Submitting || isNothing mkSpec
         linesNotPrism :: Lens' s [Text] -> NotAPrism s Text
