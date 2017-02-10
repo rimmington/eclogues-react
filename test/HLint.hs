@@ -1,7 +1,7 @@
 module Main (main) where
 
 import Control.Monad ((<=<))
-import Paths_eclogues_react (getDataFileName)
+-- import Paths_eclogues_react (getDataFileName)
 -- import Language.Haskell.HLint (hlint)
 import System.Exit (ExitCode (..), exitFailure, exitSuccess)
 import System.Process (spawnProcess, waitForProcess)
